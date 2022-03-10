@@ -5,7 +5,6 @@ export default class TextAreaPlus extends LightningElement {
     // Component facing props
     @track textValue;
     @track maxLength;
-    @track richText; //use separate variable for richerText as value attribute is causing conflict
     @track disallowedWordsArray = [];
     @track disallowedWords;
     @track disallowedSymbolsArray = [];
@@ -66,7 +65,7 @@ export default class TextAreaPlus extends LightningElement {
 
     @api
     get maxlenString() {
-        return this.cardSize;
+        return this.maxlen;
     }
     set maxlenString(value) {
         if (!Number.isNaN(value))
@@ -135,8 +134,8 @@ export default class TextAreaPlus extends LightningElement {
     
             if(!this.disableAdvancedTools){
                 console.log('disableAdvancedTools is false, in connected callback');
-                (this.value != undefined) ? this.richText = this.value : this.richText = '';
-                this.characterCount = this.richText.length;
+                (this.value != undefined) ? this.textValue = this.value : this.textValue = '';
+                this.characterCount = this.textValue.length;
                 if(this.disallowedSymbolsList != undefined){
                     this.disallowedSymbolsArray = this.disallowedSymbolsList.replace(/\s/g,'').split(',');
                     for(let i=0; i<this.disallowedSymbolsArray.length; i++){
@@ -202,6 +201,10 @@ export default class TextAreaPlus extends LightningElement {
     get plainText () {
         return this.textMode && this.textMode === 'plain'
     }
+
+    get showCounter () {
+        return this.maxlen && this.maxlen > 0
+    }
 	
 	//Handle updates to Rich Text field with no enhanced features
     handleValueChange(event) {
@@ -225,7 +228,7 @@ export default class TextAreaPlus extends LightningElement {
                     }
                     this.isValidCheck = false;
                 } else {
-                    this.richText = event.target.value;
+                    this.textValue = event.target.value;
                 }
             }
 
@@ -237,14 +240,14 @@ export default class TextAreaPlus extends LightningElement {
                     }
                     this.isValidCheck = false;
                 } else {
-                    this.richText = event.target.value;
+                    this.textValue = event.target.value;
                 }
             }
         } else {
             this.isValidCheck = true;
-            this.richText = event.target.value;
+            this.textValue = event.target.value;
         }
-        this.characterCount = this.richText.length;
+        this.characterCount = this.textValue.length;
         if(this.characterCap && this.characterCount > this.maxLength){
             this.isValidCheck = false;
         }
@@ -281,27 +284,27 @@ export default class TextAreaPlus extends LightningElement {
 
     //Execute Search and REplace
     searchReplace() {
-        this.oldRichText = this.richText;
+        this.oldRichText = this.textValue;
         this.dirty = true;
-        let draftValue = this.richText;
+        let draftValue = this.textValue;
         this.searchTerm = this.escapeRegExp(this.searchTerm);
         this.replaceValue = this.escapeRegExp(this.replaceValue);
         draftValue = this.replaceAll(draftValue, this.searchTerm, this.replaceValue);
-        this.richText = draftValue;
+        this.textValue = draftValue;
     }
 
     //Execute Auto-Replacement based on map.
     applySuggested(event) {
-        this.oldRichText = this.richText;
+        this.oldRichText = this.textValue;
         this.dirty = true;
-        let draftValue = this.richText;
+        let draftValue = this.textValue;
         let regTerm = '';
         for (var key in this.replaceMap) {
             this.applyTerm = this.replaceMap[key];
             this.regTerm = key;
             draftValue = this.replaceAll(draftValue, this.regTerm, this.applyTerm);
         }
-        this.richText = draftValue;
+        this.textValue = draftValue;
     }
 
     //Replace All function helper
@@ -311,7 +314,7 @@ export default class TextAreaPlus extends LightningElement {
 
     //Undo last change
     handleRevert() {
-        this.richText = this.oldRichText;
+        this.textValue = this.oldRichText;
         this.dirty = false;
     }
 
