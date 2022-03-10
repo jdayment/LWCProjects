@@ -34,12 +34,27 @@ export default class TextAreaPlus extends LightningElement {
     @api label;
     @api placeHolder;
     @api textMode;
-    @api disableAdvancedTools = false;
     @api disallowedWordsList;
     @api disallowedSymbolsList;
     @api autoReplaceMap;
-    @api warnOnly = false;
-    @api required = false;
+
+    @api 
+    get disableAdvancedTools() {
+    return (this.cb_disableAdvancedTools == 'CB_TRUE') ? true : false;
+    }
+    @api cb_disableAdvancedTools;
+
+    @api 
+    get warnOnly() {
+    return (this.cb_warnOnly == 'CB_TRUE') ? true : false;
+    }
+    @api cb_warnOnly;
+
+    @api 
+    get required() {
+    return (this.cb_required == 'CB_TRUE') ? true : false;
+    }
+    @api cb_required;
 
     
     @api set maxlen(val) {
@@ -47,6 +62,15 @@ export default class TextAreaPlus extends LightningElement {
     }
     get maxlen() {
         return this.maxLength;
+    }
+
+    @api
+    get maxlenString() {
+        return this.cardSize;
+    }
+    set maxlenString(value) {
+        if (!Number.isNaN(value))
+            this.maxlen = value;
     }
 
     @api set value(val) {
@@ -152,7 +176,7 @@ export default class TextAreaPlus extends LightningElement {
                     this.replaceMap = JSON.parse(this.autoReplaceMap);
                     this.autoReplaceEnabled = true;
                 } 
-                if(this.characterLimit > 0){
+                if(this.maxLength > 0){
                     this.characterCap = true;
                 }
             }
@@ -176,7 +200,7 @@ export default class TextAreaPlus extends LightningElement {
     }
 
     get plainText () {
-        return this.textMode && this.textMode === 'Plain'
+        return this.textMode && this.textMode === 'plain'
     }
 	
 	//Handle updates to Rich Text field with no enhanced features
@@ -221,11 +245,11 @@ export default class TextAreaPlus extends LightningElement {
             this.richText = event.target.value;
         }
         this.characterCount = this.richText.length;
-        if(this.characterCap && this.characterCount > this.characterLimit){
+        if(this.characterCap && this.characterCount > this.maxLength){
             this.isValidCheck = false;
         }
         //Display different message if warn only - validation also won't be enforced on Next.
-        if(this.characterCap && this.characterCount > this.characterLimit){
+        if(this.characterCap && this.characterCount > this.maxLength){
             this.errorMessage = 'Error - Character Limit Exceeded';
         }else if(!this.warnOnly){
             this.errorMessage = 'Error - Invalid Symbols/Words found: '+this.runningBlockedInput.toString();
@@ -237,7 +261,7 @@ export default class TextAreaPlus extends LightningElement {
 
     //Set css on Character count if passing character limit
     get charClass(){
-        return (this.characterLimit < this.characterCount ? 'warning' : '');
+        return (this.maxLength < this.characterCount ? 'warning' : '');
     }
 
     //Handle initiation of Search and Replace
