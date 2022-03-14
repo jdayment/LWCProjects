@@ -17,7 +17,6 @@ const FLOW_EVENT_TYPE = {
 }
 
 const VALIDATEABLE_INPUTS = ['c-fsc_flow-combobox'];
-
 export default class textAreaPlusCPE extends LightningElement {
     @api automaticOutputVariables;
     typeValue;
@@ -29,11 +28,13 @@ export default class textAreaPlusCPE extends LightningElement {
 
     @track inputValues = {
         value: { value: null, valueDataType: null, isCollection: false, label: 'Text Value' },
+        charsLeftTemplate: { value: '$R/$L characters remaining', valueDataType: null, isCollection: false, label: 'Characters Remaining Template', helpText: 'Display a custom message for remaining characters with tokens $R for remaining chars and $L for max allowed length' },
         label: { value: null, valueDataType: null, isCollection: false, label: 'Component Label' },
         maxlen: { value: null, valueDataType: DATA_TYPE.NUMBER, isCollection: false, label: 'Maximum number of characters allowed' },
-        maxlenString: { value: null, valueDataType: DATA_TYPE.NUMBER, isCollection: false, label: 'Maximum number of characters allowed' },
+        maxlenString: { value: null, valueDataType: DATA_TYPE.NUMBER, isCollection: false, label: 'Maximum number of characters allowed', helpText: 'If set, text length will be limited to this value, and a character counter will be displayed'
+            , helpTextRichText: 'If set, text length will be limited to this value, and a character counter will be displayed. NOTE: Rich text character count includes HTML not visible to the user and may not match visible text.' },
         placeHolder: { value: null, valueDataType: null, isCollection: true, label: 'Placeholder Text', helpText: 'Optional placeholder text' },
-        textMode: { value: null, valueDataType: null, isCollection: false, label: 'Plain text or Rich text?'},
+        textMode: { value: 'Rich Text', valueDataType: null, isCollection: false, label: 'Plain text or Rich text?'},
         disableAdvancedTools: { value: null, valueDataType: null, isCollection: false, label: 'Disable Advanced Tools', helpText: 'Set to true to disable expanded Rich Text tools - Search/Replace, Auto-replace, and blocked words/sybmols.' },
         cb_disableAdvancedTools: {value: null, valueDataType: null, isCollection: false, label:''},
         disallowedWordsList: { value: null, valueDataType: null, isCollection: false, label: 'Blocked Words', helpText: 'Comma-separated list of words to block.  Example: bad,worse,worst' },
@@ -43,9 +44,21 @@ export default class textAreaPlusCPE extends LightningElement {
         cb_warnOnly: {value: null, valueDataType: null, isCollection: false, label:''},
         required: { value: null, valueDataType: null, isCollection: false, label: 'Required', helpText: 'If true requires a value in the text input' },
         cb_required: {value: null, valueDataType: null, isCollection: false, label:''},
-        
     };
 
+    get bannerInfo() {
+        // returns common attributes/helptext for rich and plain text
+        return [
+            {label: 'Component Label', helpText: 'Header Label'},
+            {label: 'Placeholder Text', helpText: 'Initial Placeholder Text'},
+            {label: 'Text Value', helpText: 'Initial Text Value'}            
+        ];
+    }
+
+    get hasValidMaxLength() {        
+        return this.inputValues.maxlenString.value && Number(this.inputValues.maxlenString.value) > 0;
+    }
+    
     @api get builderContext() {
         return this._builderContext;
     }
@@ -142,7 +155,11 @@ export default class textAreaPlusCPE extends LightningElement {
 
     handleFlowComboboxValueChange(event) {
         if (event.target && event.detail) {
-            this.dispatchFlowValueChangeEvent(event.target.name, event.detail.newValue, event.detail.newValueDataType);
+            // Force update max length value so chars remaining template visibility is reflected
+            if (event.target.name === 'maxlenString') {
+                this.inputValues.maxlenString.value = event.detail.newValue;
+            }
+            this.dispatchFlowValueChangeEvent(event.target.name, event.detail.newValue, event.detail.newValueDataType);            
         }
     }
 

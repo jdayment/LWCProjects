@@ -1,7 +1,7 @@
 <template>
-    <lightning-combobox label="Which Text mode?" options={textOptions} onchange={handleTextOptionChange} value={inputValues.textMode.value}></lightning-combobox>
+    <lightning-combobox label="Text Mode" options={textOptions} onchange={handleTextOptionChange} value={inputValues.textMode.value}></lightning-combobox>
     <template if:true={isPlainText}>
-        <c-fsc_flow-banner banner-color="#4C6E96" banner-label="Plain Text Options"></c-fsc_flow-banner>
+        <c-fsc_flow-banner banner-color="#4C6E96" banner-label="Plain Text Options" banner-info={bannerInfo}></c-fsc_flow-banner>
 
         <c-fsc_flow-combobox name="label" value={inputValues.label.value} builder-context-filter-type="String"
         label={inputValues.label.label} onvaluechanged={handleFlowComboboxValueChange}></c-fsc_flow-combobox>
@@ -13,15 +13,21 @@
         label={inputValues.value.label} onvaluechanged={handleFlowComboboxValueChange}></c-fsc_flow-combobox>
 
         <c-fsc_flow-combobox name="maxlenString" value={inputValues.maxlenString.value} builder-context-filter-type="String"
-        label={inputValues.maxlen.label} onvaluechanged={handleFlowComboboxValueChange}></c-fsc_flow-combobox>    
+        label={inputValues.maxlen.label} onvaluechanged={handleFlowComboboxValueChange}
+        field-level-help={inputValues.maxlenString.helpText}></c-fsc_flow-combobox>    
 
+        <template if:true={hasValidMaxLength}>
+          <c-fsc_flow-combobox name="charsLeftTemplate" value={inputValues.charsLeftTemplate.value} builder-context-filter-type="String"
+              label={inputValues.charsLeftTemplate.label} field-level-help={inputValues.charsLeftTemplate.helpText}
+              onvaluechanged={handleFlowComboboxValueChange}></c-fsc_flow-combobox>
+        </template>
         <c-fsc_flow-checkbox name="required" label={inputValues.required.label} field-level-help={inputValues.required.helpText} 
         checked={inputValues.cb_required.value} oncheckboxchanged={handleCheckboxChange}></c-fsc_flow-checkbox>
 
     </template>
 
     <template if:false={isPlainText}>
-        <c-fsc_flow-banner banner-color="#354230" banner-label="Rich Text Options"></c-fsc_flow-banner>
+        <c-fsc_flow-banner banner-color="#354230" banner-label="Rich Text Options" banner-info={bannerInfo}></c-fsc_flow-banner>
 
         <c-fsc_flow-combobox name="label" value={inputValues.label.value} builder-context-filter-type="String"
         label={inputValues.label.label} onvaluechanged={handleFlowComboboxValueChange}></c-fsc_flow-combobox>
@@ -31,10 +37,17 @@
     
         <c-fsc_flow-combobox name="value" value={inputValues.value.value} builder-context-filter-type="String"
             label={inputValues.value.label} onvaluechanged={handleFlowComboboxValueChange}></c-fsc_flow-combobox>
-    
-        <c-fsc_flow-combobox name="maxlenString" value={inputValues.maxlenString.value} builder-context-filter-type="String"
-            label={inputValues.maxlen.label} onvaluechanged={handleFlowComboboxValueChange}></c-fsc_flow-combobox>
         
+        <template if:true={hasValidMaxLength}>
+          <c-fsc_flow-combobox name="maxlenString" value={inputValues.maxlenString.value} builder-context-filter-type="String"
+              label={inputValues.maxlen.label} onvaluechanged={handleFlowComboboxValueChange}
+              field-level-help={inputValues.maxlenString.helpText}></c-fsc_flow-combobox>
+        </template>
+
+        <c-fsc_flow-combobox name="charsLeftTemplate" value={inputValues.charsLeftTemplate.value} builder-context-filter-type="String"
+            label={inputValues.charsLeftTemplate.label} field-level-help={inputValues.charsLeftTemplate.helpText}
+            onvaluechanged={handleFlowComboboxValueChange}></c-fsc_flow-combobox>
+    
         <c-fsc_flow-checkbox name="required" label={inputValues.required.label} field-level-help={inputValues.required.helpText} 
         checked={inputValues.cb_required.value} oncheckboxchanged={handleCheckboxChange}></c-fsc_flow-checkbox>
         
