@@ -2,17 +2,34 @@ import { LightningElement, api, track } from "lwc";
 import { FlowAttributeChangeEvent } from "lightning/flowSupport";
 
 // Used for search and replace temp highlight
-const LTOKEN = '[-LEFT-]';
-const RTOKEN = '[-RIGHT-]';
-const leftHighlight = '<span style="background-color:#ffd500">';
-const leftMidHighlight = '<span style="background-color:#fff2b2">';
-const rightHighlight = '</span>';
+// mapping of highlight style to left tag (lt) and right tag (rt)
+const hlMap = {
+  bright: {lt: `<span style="background-color:#ffd500">`, rt: '</span>'},
+  mid: {lt: `<span style="background-color:#fff2b2">`, rt: '</span>'},
+  none: {lt: '', rt: ''}
+};
 
+// timing for animation of highlights
+const hlTimers = [
+  {hl: hlMap.mid, ms: 0},
+  {hl: hlMap.bright, ms: 75}, // main highlight - bright
+  {hl: hlMap.mid, ms: 525}, // start fading out for 75ms
+  {hl: hlMap.none, ms: 600} // reset to text without highlight html
+];
+
+// Reset all highlight map text values
+function resetHighlightMap() {
+  for (const prop in hlMap) {
+    hlMap[prop].text = null;
+  }
+}
+
+// Helper for removing html tags for accurate rich text count
 function stripHtml(str, isPlainText) {
   if (isPlainText) {
     return str;
   } else {
-    return str.replace( /(<([^>]+)>)/ig, '');
+    return str.replace( /(<([^>]+)>)/g, '');
   }
 }
 
@@ -22,40 +39,36 @@ function cbToBool(value) {
 }
 export default class TextAreaPlus extends LightningElement {
   // Component facing props
+  @track _charsLeftTemplate;
   @track autoReplaceEnabled = false;
   @track dirty = false;
-  @track disallowedSymbols;
-  @track disallowedSymbolsArray = [];
-  @track disallowedWords;
-  @track disallowedWordsArray = [];
+  @track disallowedSymbolsRegex;
+  @track disallowedWordsRegex;
   @track errorMessage;
-  @track interimValue = "";
   @track isValidCheck = true;
+  @track lastChange;
   @track maxLength;
   @track oldRichText;
   @track replaceValue = "";
   @track runningBlockedInput = [];
   @track searchButton = false;
   @track searchTerm = "";
-  @track symbolsNotAllowed;
   @track textValue;
-  @track wordsNotAllowed;
-  @track _charsLeftTemplate;
-  replaceMap = {};
-  regTerm = "";
   applyTerm = "";
+  regTerm = "";
+  replaceMap = {};
   instructions =
     "1)  Find and Replace:  Use Magnifying Glass, Enter Terms and Use Check Mark.  " +
     "2)  Auto Replace:  If your Admin has configured it, Use Merge Icon to replace suggested terms.";
 
   // Flow inputs
   @api autoReplaceMap;
+  @api counterTextTemplate;
   @api disallowedSymbolsList;
   @api disallowedWordsList;
   @api label;
   @api placeHolder;
   @api textMode;
-  @api counterTextTemplate;
 
   get counterText() {
     // base case - template is blank
@@ -64,7 +77,16 @@ export default class TextAreaPlus extends LightningElement {
     }
     return this._charsLeftTemplate
       .replace('$R', this.charsLeft)
-      .replace('$L', this.maxLength)
+      .replace('$M', this.maxLength)
+      .replace('$L', this.len)
+  }
+
+  get plainText() {
+    return this.textMode && this.textMode === "plain";
+  }
+
+  get showCounter() {
+    return this.maxlen && this.maxlen > 0;
   }
 
   @api
@@ -85,13 +107,14 @@ export default class TextAreaPlus extends LightningElement {
   }
   @api cb_required;
 
-  @api set maxlen(value) {
-    this.maxLength = value;
-  }
+  @api 
   get maxlen() {
     return this.maxLength;
   }
-
+  set maxlen(value) {
+    this.maxLength = value;
+  }
+  
   @api
   get maxlenString() {
     return this.maxlen;
@@ -100,24 +123,25 @@ export default class TextAreaPlus extends LightningElement {
     if (!Number.isNaN(value)) this.maxlen = value;
   }
 
-  @api set value(val) {
-    this.textValue = val;
-  }
+  @api 
   get value() {
     return this.textValue;
   }
-
-  @api set charsLeftTemplate(value) {
+  set value(val) {
+    this.textValue = val;
+  }
+  
+  @api
+  get charsLeftTemplate() {
+    return this._charsLeftTemplate;
+  }
+  set charsLeftTemplate(value) {
     if (value && value.trim().length > 0) {
       this._charsLeftTemplate = value;
     }
   }
-  get charsLeftTemplate() {
-    return this._charsLeftTemplate;
-  }
-
+  
   @api validate() {
-    console.log(this.maxLength);
     if (Number(this.maxLength) >= 0) {
       return { isValid: true };
     }
@@ -138,6 +162,8 @@ export default class TextAreaPlus extends LightningElement {
     if (this.disableAdvancedTools || this.warnOnly) {
       return { isValid: true };
     } 
+
+    //TODO: Handle over char limit in rich text
     // else if (this.characterCap && this.characterCount > this.maxLength) {
     //   //failure scenario so set tempValue in sessionStorage
     //   sessionStorage.setItem("tempValue", this.value);
@@ -157,7 +183,7 @@ export default class TextAreaPlus extends LightningElement {
         isValid: false,
         errorMessage:
           "Cannot Advance - Invalid Symbols/Words Remain in Rich Text: " +
-          this.runningBlockedInput.toString(),
+          this.runningBlockedInput.join(', '),
       };
     } else {
       return { isValid: false };
@@ -199,61 +225,10 @@ export default class TextAreaPlus extends LightningElement {
 
     if (!this.disableAdvancedTools) {
       console.log("disableAdvancedTools is false, in connected callback");
-      this.value != undefined
-        ? (this.textValue = this.value)
-        : (this.textValue = "");
-      // this.characterCount = this.textValue.length;
-      if (this.disallowedSymbolsList != undefined) {
-        this.disallowedSymbolsArray = this.disallowedSymbolsList
-          .replace(/\s/g, "")
-          .split(",");
-        for (let i = 0; i < this.disallowedSymbolsArray.length; i++) {
-          if (i == 0) {
-            if (this.disallowedSymbolsArray.length != 1) {
-              this.disallowedSymbols =
-                "[" + this.disallowedSymbolsArray[i] + "|";
-            } else {
-              this.disallowedSymbols =
-                "[" + this.disallowedSymbolsArray[i] + "]";
-            }
-          } else if (i == this.disallowedSymbolsArray.length - 1) {
-            this.disallowedSymbols = this.disallowedSymbols.concat(
-              this.disallowedSymbolsArray[i] + "]"
-            );
-          } else {
-            this.disallowedSymbols = this.disallowedSymbols.concat(
-              this.disallowedSymbolsArray[i] + "|"
-            );
-          }
-        }
-      }
-
-      if (this.disallowedWordsList != undefined) {
-        this.disallowedWordsArray = this.disallowedWordsList
-          .replace(/\s/g, "")
-          .split(",");
-        for (let i = 0; i < this.disallowedWordsArray.length; i++) {
-          if (i == 0) {
-            if (this.disallowedWordsArray.length != 1) {
-              this.disallowedWords = "(" + this.disallowedWordsArray[i] + "|";
-            } else {
-              this.disallowedWords = "(" + this.disallowedWordsArray[i] + ")\b";
-            }
-          } else if (i == this.disallowedWordsArray.length - 1) {
-            this.disallowedWords = this.disallowedWords.concat(
-              this.disallowedWordsArray[i] + ")\\b"
-            );
-          } else {
-            this.disallowedWords = this.disallowedWords.concat(
-              this.disallowedWordsArray[i] + "|"
-            );
-          }
-        }
-      }
-      if (this.disallowedSymbols != undefined)
-        this.symbolsNotAllowed = new RegExp(this.disallowedSymbols, "g");
-      if (this.disallowedWords != undefined)
-        this.wordsNotAllowed = new RegExp(this.disallowedWords, "g");
+      this.textValue = this.value || "";
+      this.setRegex('Symbols', s=>`\\${s}`);
+      this.setRegex('Words', w=>`\\b${w}\\b`);
+      
       if (this.autoReplaceMap != undefined) {
         this.replaceMap = JSON.parse(this.autoReplaceMap);
         this.autoReplaceEnabled = true;
@@ -261,16 +236,35 @@ export default class TextAreaPlus extends LightningElement {
     }
   }
 
-  // Dynamic properties
-  get charsLeft() {
+  // Helper to convert comma delimited list of words or symbols to pipe delimited regular expression
+  setRegex(type, fn) {
+    const list = this[`disallowed${type}List`];
+    if (list?.length > 0) {
+      const pipedList = list
+        .replace(/\s/g, "")
+        .split(",")
+        .map(fn)
+        .join('|');        
+      this[`disallowed${type}Regex`] = new RegExp(pipedList, "gi");
+    }
+  }
+
+  // Dynamically calculate the length of text
+  get len() {
     // for plain text, just return the length
     // for rich text, strip the HTML
-    const tlen = stripHtml(this.textValue, this.plainText).length;
+    return stripHtml(this.textValue, this.plainText).length;
+  }
+
+  // Dynamically calculate remaining characters
+  get charsLeft() {
+    const tlen = this.len;
     return (      
       this.maxLength - (tlen >= 0 ? tlen : 0)
     );
   }
 
+  // Set the class based on rich text vs plain text, and number of chars left
   get charsLeftClass() {
     const padding = this.plainText ?
       'slds-var-p-top_xxx-small slds-var-p-left_x-small' :
@@ -280,7 +274,7 @@ export default class TextAreaPlus extends LightningElement {
     }`;
   }
 
-  // Event handler
+  // Event handler for plain text change
   handleChange({ detail }) {
     this.textValue = detail.value;
     // required for Flow
@@ -289,14 +283,6 @@ export default class TextAreaPlus extends LightningElement {
       this.textValue
     );
     this.dispatchEvent(attributeChangeEvent);
-  }
-
-  get plainText() {
-    return this.textMode && this.textMode === "plain";
-  }
-
-  get showCounter() {
-    return this.maxlen && this.maxlen > 0;
   }
 
   //Handle updates to Rich Text field with no enhanced features
@@ -312,62 +298,48 @@ export default class TextAreaPlus extends LightningElement {
     }
   }
 
+  checkBlockedItems(text, naughtyList) {
+    if (naughtyList) {
+      let matches = text.match(naughtyList);
+      if (matches?.length > 0) {
+        this.addBlockedItems(matches);
+        this.isValidCheck = false;
+      }
+    }
+  }
+
+  addBlockedItems(items) {
+    for (const item of items) {
+      if (!this.runningBlockedInput.includes(item)) {
+        this.runningBlockedInput.push(item);
+      }
+    }
+  }
   //Handle updates to Rich Text field with enhanced features
   handleTextChange(event) {    
     this.runningBlockedInput = [];
-    this.isValidCheck = true;
-    if (
-      this.symbolsNotAllowed != undefined ||
-      this.wordsNotAllowed != undefined
-    ) {
-      this.interimValue = event.target.value.toLowerCase();
-      this.interimValue = stripHtml(this.interimValue);
-      //Symbol check section
-      if (this.symbolsNotAllowed != undefined) {
-        let matchesSymbol = this.interimValue.match(this.symbolsNotAllowed);
-        if (matchesSymbol != null && matchesSymbol.length > 0) {
-          for (let i = 0; i < matchesSymbol.length; i++) {
-            this.runningBlockedInput.push(matchesSymbol[i]);
-          }
-          this.isValidCheck = false;
-        } else {
-          this.textValue = event.target.value;
-        }
-      }
+    this.textValue = event.target.value;
 
-      if (this.wordsNotAllowed != undefined) {
-        let matchesWords = this.interimValue.match(this.wordsNotAllowed);
-        if (matchesWords != null && matchesWords.length > 0) {
-          for (let i = 0; i < matchesWords.length; i++) {
-            this.runningBlockedInput.push(matchesWords[i]);
-          }
-          this.isValidCheck = false;
-        } else {
-          this.textValue = event.target.value;
-        }
-      }
-    } else {
-      this.isValidCheck = true;
-      this.textValue = event.target.value;
+    // base case, there are no disallowed symbols or words
+    if (!this.disallowedSymbolsRegex && !this.disallowedWordsRegex) {
+      this.isValidCheck = true;      
+      return;
     }
-    // Can't happen if it's prevented
-    // if (this.characterCap && this.characterCount > this.maxLength) {
-    //   this.isValidCheck = false;
-    // }
-    //Display different message if warn only - validation also won't be enforced on Next.
-    // if (this.characterCap && this.characterCount > this.maxLength) {
-    //   this.errorMessage = "Error - Character Limit Exceeded";
-    // } else 
+    
+    const text = stripHtml(event.target.value);
+    if (this.checkBlockedItems(text, this.disallowedSymbolsRegex)) {
+      this.isValidCheck = false;
+    }
+    if (this.checkBlockedItems(text, this.disallowedWordsRegex)) {
+      this.isValidCheck = false;
+    }
 
     // TODO: why are these the same
-    if (!this.warnOnly) {
-      this.errorMessage =
-        "Error - Invalid Symbols/Words found: " +
-        this.runningBlockedInput.toString();
+    if (this.runningBlockedInput.length > 0) {
+      this.errorMessage = "Error - Invalid Symbols/Words found: " +
+        this.runningBlockedInput.join(', ');
     } else {
-      this.errorMessage =
-        "Warning - Invalid Symbols/Words found: " +
-        this.runningBlockedInput.toString();
+      this.errorMessage = '';
     }
   }
 
@@ -378,68 +350,81 @@ export default class TextAreaPlus extends LightningElement {
 
   //Search and Replace Search for Value
   handleSearchChange(event) {
+    //TODO: Fix infinite loop, block invalid chars @ keypress
     this.searchTerm = event.target.value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
   //Search and Replace Replace with Value
   handleReplaceChange(event) {
+    //TODO: Fix infinite loop, block invalid chars @ keypress
     this.replaceValue = event.target.value.replace(
       /[.*+?^${}()|[\]\\]/g,
       "\\$&"
     );
   }
 
+  // Helper function to build text for search replace with
+  // different highlight styles and store it on the highlight map object
+  setReplaceText(hl, text, term, value) {    
+    // Creates highlight HTML (e.g. bright, mid) with the left and right tags (lt/rt)    
+    //const hl = highlightMap[style];
+    hl.text = text.replaceAll(term,`${hl.lt}${value}${hl.rt}`);    
+  }
+
+  // Sets a future highlight change
+  setHighlightTimer({hl, ms}) {
+    setTimeout(() => {
+      this.textValue = hl.text;
+    }, ms);
+  }
+
   //Execute Search and REplace
-  searchReplace() {    
+  searchReplace() {
+    this.lastChange = 'Undo Find and Replace';
+    // prep for undo
     this.oldRichText = this.textValue;
     this.dirty = true;
-    let draftValue = this.textValue;
-    this.searchTerm = this.escapeRegExp(this.searchTerm);
-    this.replaceValue = this.escapeRegExp(this.replaceValue);
-    draftValue = this.replaceAll(
-      draftValue,
-      this.searchTerm,
-      LTOKEN + this.replaceValue + RTOKEN
-    );
-    // temp highlight - replace the left and right token with highlight HTML
-    const highlightValue = draftValue
-      .replaceAll(LTOKEN, leftHighlight)
-      .replaceAll(RTOKEN, rightHighlight);
+    const term = this.escapeRegExp(this.searchTerm);
+    const value = this.escapeRegExp(this.replaceValue);    
 
-    // lighter value - so it doesn't flash out and since we can't use CSS webkit animation
-    const midValue = draftValue
-      .replaceAll(LTOKEN, leftMidHighlight)
-      .replaceAll(RTOKEN, rightHighlight);
+    // Store the text in three forms: 
+    // no highlight (none), bright highlight (bright), and mid-level highlight (mid)
+    for (const prop in hlMap) {
+      this.setReplaceText(hlMap[prop], this.textValue, term, value);
+    }
 
-    // final text value - completely remove the highlights
-    const finalValue = draftValue
-      .replaceAll(LTOKEN, '')
-      .replaceAll(RTOKEN, '');
+    // Flash highlight
+    this.animateHighlight();    
+  }
 
-    // pseudo animated flash highlight of replacement text
-    this.textValue = midValue;
-    setTimeout(() => {
-      this.textValue = highlightValue;
-    }, 75);
-    setTimeout(() => {
-      this.textValue = midValue;
-    }, 525);
-    setTimeout(() => {
-      this.textValue = finalValue;
-    }, 600);
+  // pseudo animated flash highlight of replacement text
+  // Use array of animation timing to flash, then remove highlight
+  animateHighlight() {    
+    for (const timer of hlTimers) {
+      this.setHighlightTimer(timer);
+    }    
   }
 
   //Execute Auto-Replacement based on map.
   applySuggested(event) {
+    this.lastChange = 'Undo Apply Suggestions';
     this.oldRichText = this.textValue;
     this.dirty = true;
-    let draftValue = this.textValue;
-    for (var key in this.replaceMap) {
-      this.applyTerm = this.replaceMap[key];
-      this.regTerm = key;
-      draftValue = this.replaceAll(draftValue, this.regTerm, this.applyTerm);
+    
+    // Reset all text values in the highlight map
+    // so highlights will work correctly
+    resetHighlightMap();
+    for (const term in this.replaceMap) {
+      for (const prop in hlMap) {
+        const rex = new RegExp(term,"gi");
+        const text = hlMap[prop].text || this.textValue;
+        const value = this.replaceMap[term];
+        this.setReplaceText(hlMap[prop], text, rex, value);
+      }      
     }
-    this.textValue = draftValue;
+
+    // Animate highlights
+    this.animateHighlight();    
   }
 
   //Replace All function helper

@@ -28,7 +28,7 @@ export default class textAreaPlusCPE extends LightningElement {
 
     @track inputValues = {
         value: { value: null, valueDataType: null, isCollection: false, label: 'Text Value' },
-        charsLeftTemplate: { value: '$R/$L characters remaining', valueDataType: null, isCollection: false, label: 'Characters Remaining Template', helpText: 'Display a custom message for remaining characters with tokens $R for remaining chars and $L for max allowed length' },
+        charsLeftTemplate: { value: '$M/$L characters remaining', valueDataType: null, isCollection: false, label: 'Characters Remaining Template', helpText: 'Display a custom message for remaining characters with tokens: $R for remaining chars, $L for current length, and $M for max allowed characters.' },
         label: { value: null, valueDataType: null, isCollection: false, label: 'Component Label' },
         maxlen: { value: null, valueDataType: DATA_TYPE.NUMBER, isCollection: false, label: 'Maximum number of characters allowed' },
         maxlenString: { value: null, valueDataType: DATA_TYPE.NUMBER, isCollection: false, label: 'Maximum number of characters allowed', helpText: 'If set, text length will be limited to this value, and a character counter will be displayed'

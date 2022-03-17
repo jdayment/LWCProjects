@@ -65,7 +65,7 @@
                     <template if:true={dirty}>
                         <div class="slds-var-p-around_xxx-small">
                             <lightning-button-icon variant="border-filled" size="medium" icon-name="utility:undo"
-                                onclick={handleRevert} alternative-text="Undo Last Change" tooltip="Undo Last Change">
+                                onclick={handleRevert} alternative-text={lastChange} tooltip={lastChange}>
                             </lightning-button-icon>
                         </div>
                     </template>
