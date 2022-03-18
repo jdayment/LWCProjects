@@ -26,6 +26,8 @@
             <property name="cb_warnOnly" type="String" role="inputOnly" />
             <property label="Required?" name="required" type="Boolean" role="inputOnly" default="false" description="Set to True if you want to require an entry for this input." />
             <property name="cb_required" type="String" role="inputOnly" />
+            <property label="Show Counter" name="showCharCounter" type="Boolean" role="inputOnly" default="false" description="Display Character Counter" />
+            <property name="cb_showCharCounter" type="String" role="inputOnly" />
         </targetConfig>
     </targetConfigs>
 </LightningComponentBundle>

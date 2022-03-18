@@ -38,16 +38,22 @@
         <c-fsc_flow-combobox name="value" value={inputValues.value.value} builder-context-filter-type="String"
             label={inputValues.value.label} onvaluechanged={handleFlowComboboxValueChange}></c-fsc_flow-combobox>
         
-        <template if:true={hasValidMaxLength}>
-          <c-fsc_flow-combobox name="maxlenString" value={inputValues.maxlenString.value} builder-context-filter-type="String"
-              label={inputValues.maxlen.label} onvaluechanged={handleFlowComboboxValueChange}
-              field-level-help={inputValues.maxlenString.helpText}></c-fsc_flow-combobox>
-        </template>
-
-        <c-fsc_flow-combobox name="charsLeftTemplate" value={inputValues.charsLeftTemplate.value} builder-context-filter-type="String"
-            label={inputValues.charsLeftTemplate.label} field-level-help={inputValues.charsLeftTemplate.helpText}
-            onvaluechanged={handleFlowComboboxValueChange}></c-fsc_flow-combobox>
+        <c-fsc_flow-checkbox name="showCharCounter" label={inputValues.showCharCounter.label} field-level-help={inputValues.showCharCounter.helpText} 
+            checked={inputValues.showCharCounter.value} oncheckboxchanged={handleCheckboxChange}></c-fsc_flow-checkbox>
     
+        <template if:true={showCounterSettings}>
+                <c-fsc_flow-combobox name="maxlenString" value={inputValues.maxlenString.value} builder-context-filter-type="String"
+                    label={inputValues.maxlen.label} onvaluechanged={handleFlowComboboxValueChange}
+                    field-level-help={inputValues.maxlenString.helpText}></c-fsc_flow-combobox>
+            
+        
+            <template if:true={hasValidMaxLength}>
+                <c-fsc_flow-combobox name="charsLeftTemplate" value={inputValues.charsLeftTemplate.value} builder-context-filter-type="String"
+                    label={inputValues.charsLeftTemplate.label} field-level-help={inputValues.charsLeftTemplate.helpText}
+                    onvaluechanged={handleFlowComboboxValueChange}></c-fsc_flow-combobox>
+            </template>
+        </template>
+        
         <c-fsc_flow-checkbox name="required" label={inputValues.required.label} field-level-help={inputValues.required.helpText} 
         checked={inputValues.cb_required.value} oncheckboxchanged={handleCheckboxChange}></c-fsc_flow-checkbox>
         

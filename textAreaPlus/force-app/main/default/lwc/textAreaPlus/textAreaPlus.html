@@ -53,7 +53,7 @@
                             <lightning-button-icon variant="brand" size="medium" icon-name="utility:check"
                                 onclick={searchReplace} alternative-text="Search and Replace" tooltip="Search and Replace">
                             </lightning-button-icon>
-                        </div>
+                        </div>                        
                     </template>
                     <template if:true={autoReplaceEnabled}>
                         <div class="slds-var-p-around_xxx-small">
@@ -62,10 +62,17 @@
                             </lightning-button-icon>
                         </div>
                     </template>
+                    <template if:true={showCaseInsensitive}>
+                        <div class="slds-var-p-left_xxx-small slds-var-p-right_small slds-var-p-top_xxx-small slds-var-p-bottom_xxx-small">
+                            <lightning-button-icon variant={ignoreCaseVariant} size="medium" icon-name="utility:text"
+                                onclick={handleIgnoreCaseToggle} alternative-text="Case Insensitive Search/Suggested Terms" tooltip="Case Insensitive Search/Suggested Terms">
+                            </lightning-button-icon>
+                        </div>
+                    </template>
                     <template if:true={dirty}>
                         <div class="slds-var-p-around_xxx-small">
                             <lightning-button-icon variant="border-filled" size="medium" icon-name="utility:undo"
-                                onclick={handleRevert} alternative-text={lastChange} tooltip={lastChange}>
+                                onclick={handleRevert} alternative-text={undoText} tooltip={undoText}>
                             </lightning-button-icon>
                         </div>
                     </template>

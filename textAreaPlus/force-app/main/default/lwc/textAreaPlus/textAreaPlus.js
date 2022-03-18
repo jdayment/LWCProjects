@@ -24,14 +24,6 @@ function resetHighlightMap() {
   }
 }
 
-// Helper for removing html tags for accurate rich text count
-function stripHtml(str, isPlainText) {
-  if (isPlainText) {
-    return str;
-  } else {
-    return str.replace( /(<([^>]+)>)/g, '');
-  }
-}
 
 // Convert CB values to a boolean
 function cbToBool(value) {
@@ -46,7 +38,7 @@ export default class TextAreaPlus extends LightningElement {
   @track disallowedWordsRegex;
   @track errorMessage;
   @track isValidCheck = true;
-  @track lastChange;
+  @track undoText;
   @track maxLength;
   @track oldRichText;
   @track replaceValue = "";
@@ -54,6 +46,7 @@ export default class TextAreaPlus extends LightningElement {
   @track searchButton = false;
   @track searchTerm = "";
   @track textValue;
+  @track ignoreCase = true;
   applyTerm = "";
   regTerm = "";
   replaceMap = {};
@@ -70,19 +63,34 @@ export default class TextAreaPlus extends LightningElement {
   @api placeHolder;
   @api textMode;
 
+  // If either search or autoreplace is enabled, allow case insensitive
+  get showCaseInsensitive() {
+    return this.searchButton || this.autoReplaceEnabled;
+  }
+
+  get ignoreCaseVariant() {
+    return this.ignoreCase ? "brand" : "neutral";
+  }
+
+  // based on whether ignore case is selected, use the modifier
+  get regexMod() {
+    return this.ignoreCase ? "gi" : "g";
+  }
+
   get counterText() {
     // base case - template is blank
     if (!this._charsLeftTemplate) {
       return '';
     }
-    return this._charsLeftTemplate
+    
+    return this._charsLeftTemplate    
       .replace('$R', this.charsLeft)
       .replace('$M', this.maxLength)
       .replace('$L', this.len)
   }
 
   get plainText() {
-    return this.textMode && this.textMode === "plain";
+    return this.textMode === "plain";
   }
 
   get showCounter() {
@@ -107,6 +115,12 @@ export default class TextAreaPlus extends LightningElement {
   }
   @api cb_required;
 
+  @api
+  get showCharCounter() {
+    return cbToBool(this.cb_showCharCounter);
+  }
+  @api cb_showCharCounter;
+
   @api 
   get maxlen() {
     return this.maxLength;
@@ -120,7 +134,9 @@ export default class TextAreaPlus extends LightningElement {
     return this.maxlen;
   }
   set maxlenString(value) {
-    if (!Number.isNaN(value)) this.maxlen = value;
+    if (!Number.isNaN(value)) {
+      this.maxlen = value
+    };
   }
 
   @api 
@@ -214,6 +230,16 @@ export default class TextAreaPlus extends LightningElement {
     "direction",
   ];
 
+  // Helper for removing html tags for accurate rich text count
+  stripHtml(str) {
+    if (this.plainText) {
+      return str;
+    } else {
+      return str?.replace( /(<([^>]+)>)/g, '');
+    }
+  }
+
+
   connectedCallback() {
     //use sessionStorage to fetch and restore latest value before validation failure.
     if (sessionStorage) {
@@ -224,14 +250,14 @@ export default class TextAreaPlus extends LightningElement {
     }
 
     if (!this.disableAdvancedTools) {
-      console.log("disableAdvancedTools is false, in connected callback");
       this.textValue = this.value || "";
+      // Build regex for disallowed symbols and words (if listed)
       this.setRegex('Symbols', s=>`\\${s}`);
       this.setRegex('Words', w=>`\\b${w}\\b`);
       
       if (this.autoReplaceMap != undefined) {
-        this.replaceMap = JSON.parse(this.autoReplaceMap);
-        this.autoReplaceEnabled = true;
+          this.replaceMap = JSON.parse(this.autoReplaceMap);        
+          this.autoReplaceEnabled = true;
       }
     }
   }
@@ -245,7 +271,7 @@ export default class TextAreaPlus extends LightningElement {
         .split(",")
         .map(fn)
         .join('|');        
-      this[`disallowed${type}Regex`] = new RegExp(pipedList, "gi");
+      this[`disallowed${type}Regex`] = new RegExp(pipedList, this.regexMod);
     }
   }
 
@@ -253,7 +279,8 @@ export default class TextAreaPlus extends LightningElement {
   get len() {
     // for plain text, just return the length
     // for rich text, strip the HTML
-    return stripHtml(this.textValue, this.plainText).length;
+    
+    return this.stripHtml(this.textValue)?.length || 0;
   }
 
   // Dynamically calculate remaining characters
@@ -274,6 +301,10 @@ export default class TextAreaPlus extends LightningElement {
     }`;
   }
 
+  handleIgnoreCaseToggle() {
+    this.ignoreCase = !this.ignoreCase;
+  }
+
   // Event handler for plain text change
   handleChange({ detail }) {
     this.textValue = detail.value;
@@ -287,7 +318,7 @@ export default class TextAreaPlus extends LightningElement {
 
   //Handle updates to Rich Text field with no enhanced features
   handleValueChange(event) {
-    this.value = event.target.value;
+    this.textValue = event.target.value;
   }
 
   handleRichTextKeyDown(event) {
@@ -326,7 +357,7 @@ export default class TextAreaPlus extends LightningElement {
       return;
     }
     
-    const text = stripHtml(event.target.value);
+    const text = this.stripHtml(event.target.value);
     if (this.checkBlockedItems(text, this.disallowedSymbolsRegex)) {
       this.isValidCheck = false;
     }
@@ -339,7 +370,7 @@ export default class TextAreaPlus extends LightningElement {
       this.errorMessage = "Error - Invalid Symbols/Words found: " +
         this.runningBlockedInput.join(', ');
     } else {
-      this.errorMessage = '';
+      this.errorMessage = null;
     }
   }
 
@@ -371,20 +402,13 @@ export default class TextAreaPlus extends LightningElement {
     hl.text = text.replaceAll(term,`${hl.lt}${value}${hl.rt}`);    
   }
 
-  // Sets a future highlight change
-  setHighlightTimer({hl, ms}) {
-    setTimeout(() => {
-      this.textValue = hl.text;
-    }, ms);
-  }
-
   //Execute Search and REplace
   searchReplace() {
-    this.lastChange = 'Undo Find and Replace';
+    this.undoText = 'Undo Find and Replace';
     // prep for undo
     this.oldRichText = this.textValue;
     this.dirty = true;
-    const term = this.escapeRegExp(this.searchTerm);
+    const term = new RegExp(this.escapeRegExp(this.searchTerm), this.regexMod);
     const value = this.escapeRegExp(this.replaceValue);    
 
     // Store the text in three forms: 
@@ -405,9 +429,16 @@ export default class TextAreaPlus extends LightningElement {
     }    
   }
 
+  // Sets a future highlight change
+  setHighlightTimer({hl, ms}) {
+    setTimeout(() => {
+      this.textValue = hl.text;
+    }, ms);
+  }
+  
   //Execute Auto-Replacement based on map.
   applySuggested(event) {
-    this.lastChange = 'Undo Apply Suggestions';
+    this.undoText = 'Undo Apply Suggestions';
     this.oldRichText = this.textValue;
     this.dirty = true;
     
@@ -416,7 +447,7 @@ export default class TextAreaPlus extends LightningElement {
     resetHighlightMap();
     for (const term in this.replaceMap) {
       for (const prop in hlMap) {
-        const rex = new RegExp(term,"gi");
+        const rex = new RegExp(term, this.regexMod);
         const text = hlMap[prop].text || this.textValue;
         const value = this.replaceMap[term];
         this.setReplaceText(hlMap[prop], text, rex, value);
@@ -428,9 +459,9 @@ export default class TextAreaPlus extends LightningElement {
   }
 
   //Replace All function helper
-  replaceAll(str, term, replacement) {
-    return str.replace(new RegExp(term, "ig"), replacement);
-  }
+  // replaceAll(str, term, replacement) {
+  //   return str.replace(new RegExp(term, this.regexMod), replacement);
+  // }
 
   //Undo last change
   handleRevert() {
@@ -439,7 +470,9 @@ export default class TextAreaPlus extends LightningElement {
   }
 
   //Clean input for RegExp
-  escapeRegExp(str) {
+  escapeRegExp(str) {    
+    // const rx = new RegExp('[.*+?^${}()|[\]\\]', this.regexMod);
     return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    //return str.replace(rx, '\\$&');
   }
 }
