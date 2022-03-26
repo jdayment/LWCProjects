@@ -4,7 +4,7 @@
             <div class="slds-var-p-around_x-small">
                 <lightning-textarea value={textValue} label={label} max-length={maxLength} onchange={handleChange} placeholder={placeHolder} required={required}></lightning-textarea>
             </div>
-            <template if:true={showCounter}>
+            <template if:true={showCharCounter}>
                 <div class={charsLeftClass}>
                     {counterText}
                 </div>

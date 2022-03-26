@@ -3,7 +3,7 @@ import { FlowAttributeChangeEvent } from "lightning/flowSupport";
 
 // Used for search and replace temp highlight
 // mapping of highlight style to left tag (lt) and right tag (rt)
-const hlMap = {
+const hlStyles = {
   bright: {lt: `<span style="background-color:#ffd500">`, rt: '</span>'},
   mid: {lt: `<span style="background-color:#fff2b2">`, rt: '</span>'},
   none: {lt: '', rt: ''}
@@ -11,19 +11,11 @@ const hlMap = {
 
 // timing for animation of highlights
 const hlTimers = [
-  {hl: hlMap.mid, ms: 0},
-  {hl: hlMap.bright, ms: 75}, // main highlight - bright
-  {hl: hlMap.mid, ms: 525}, // start fading out for 75ms
-  {hl: hlMap.none, ms: 600} // reset to text without highlight html
+  {style: 'mid', ms: 0},
+  {style: 'bright', ms: 75}, // main highlight - bright
+  {style: 'mid', ms: 525}, // start fading out for 75ms
+  {style: 'none', ms: 600} // reset to text without highlight html
 ];
-
-// Reset all highlight map text values
-function resetHighlightMap() {
-  for (const prop in hlMap) {
-    hlMap[prop].text = null;
-  }
-}
-
 
 // Convert CB values to a boolean
 function cbToBool(value) {
@@ -47,6 +39,7 @@ export default class TextAreaPlus extends LightningElement {
   @track searchTerm = "";
   @track textValue;
   @track ignoreCase = true;
+  hlText;
   applyTerm = "";
   regTerm = "";
   replaceMap = {};
@@ -166,13 +159,9 @@ export default class TextAreaPlus extends LightningElement {
       this.value = this.textValue;
     }
 
-    let errorMessage =
-      "You must make a selection in: " + this.label + " to continue";
+    let errorMessage = `You must make a selection in: ${this.label} to continue`;
     if (this.required === true && !this.value) {
-      return {
-        isValid: false,
-        errorMessage: errorMessage,
-      };
+      return { isValid: false, errorMessage };
     }
 
     if (this.disableAdvancedTools || this.warnOnly) {
@@ -279,7 +268,6 @@ export default class TextAreaPlus extends LightningElement {
   get len() {
     // for plain text, just return the length
     // for rich text, strip the HTML
-    
     return this.stripHtml(this.textValue)?.length || 0;
   }
 
@@ -329,9 +317,14 @@ export default class TextAreaPlus extends LightningElement {
     }
   }
 
-  checkBlockedItems(text, naughtyList) {
-    if (naughtyList) {
-      let matches = text.match(naughtyList);
+  checkBlockedItems(text) {
+    // Create a list of disallowed words/symbols that actually contain elements
+    const naughtyLists = [this.disallowedWordsRegex, this.disallowedSymbolsRegex]
+      .filter(x => !!x);
+    
+    // Update runningBlockedInput
+    for (const rx of naughtyLists) {
+      const matches = text.match(rx);
       if (matches?.length > 0) {
         this.addBlockedItems(matches);
         this.isValidCheck = false;
@@ -339,13 +332,12 @@ export default class TextAreaPlus extends LightningElement {
     }
   }
 
+  // Create a unique list of items, add any that aren't already in the blocked list
   addBlockedItems(items) {
-    for (const item of items) {
-      if (!this.runningBlockedInput.includes(item)) {
-        this.runningBlockedInput.push(item);
-      }
-    }
+    items = items.map(w => w.toLowerCase());
+    this.runningBlockedInput = Array.from(new Set([...this.runningBlockedInput,...items]));
   }
+
   //Handle updates to Rich Text field with enhanced features
   handleTextChange(event) {    
     this.runningBlockedInput = [];
@@ -358,10 +350,7 @@ export default class TextAreaPlus extends LightningElement {
     }
     
     const text = this.stripHtml(event.target.value);
-    if (this.checkBlockedItems(text, this.disallowedSymbolsRegex)) {
-      this.isValidCheck = false;
-    }
-    if (this.checkBlockedItems(text, this.disallowedWordsRegex)) {
+    if (this.checkBlockedItems(text)) {
       this.isValidCheck = false;
     }
 
@@ -396,10 +385,9 @@ export default class TextAreaPlus extends LightningElement {
 
   // Helper function to build text for search replace with
   // different highlight styles and store it on the highlight map object
-  setReplaceText(hl, text, term, value) {    
+  setReplaceText(hl, prop, text, term, value) {    
     // Creates highlight HTML (e.g. bright, mid) with the left and right tags (lt/rt)    
-    //const hl = highlightMap[style];
-    hl.text = text.replaceAll(term,`${hl.lt}${value}${hl.rt}`);    
+    this.hlText[prop] = text.replaceAll(term,`${hl.lt}${value}${hl.rt}`);    
   }
 
   //Execute Search and REplace
@@ -413,8 +401,9 @@ export default class TextAreaPlus extends LightningElement {
 
     // Store the text in three forms: 
     // no highlight (none), bright highlight (bright), and mid-level highlight (mid)
-    for (const prop in hlMap) {
-      this.setReplaceText(hlMap[prop], this.textValue, term, value);
+    this.hlText = {};
+    for (const prop in hlStyles) {
+      this.setReplaceText(hlStyles[prop], prop, this.textValue, term, value);
     }
 
     // Flash highlight
@@ -423,16 +412,16 @@ export default class TextAreaPlus extends LightningElement {
 
   // pseudo animated flash highlight of replacement text
   // Use array of animation timing to flash, then remove highlight
-  animateHighlight() {    
+  animateHighlight() {
     for (const timer of hlTimers) {
       this.setHighlightTimer(timer);
-    }    
+    }
   }
 
   // Sets a future highlight change
-  setHighlightTimer({hl, ms}) {
+  setHighlightTimer({style, ms}) {
     setTimeout(() => {
-      this.textValue = hl.text;
+      this.textValue = this.hlText[style];
     }, ms);
   }
   
@@ -444,24 +433,19 @@ export default class TextAreaPlus extends LightningElement {
     
     // Reset all text values in the highlight map
     // so highlights will work correctly
-    resetHighlightMap();
+    this.hlText = {};
     for (const term in this.replaceMap) {
-      for (const prop in hlMap) {
+      for (const prop in hlStyles) {
         const rex = new RegExp(term, this.regexMod);
-        const text = hlMap[prop].text || this.textValue;
+        const text = this.hlText[prop] || this.textValue;
         const value = this.replaceMap[term];
-        this.setReplaceText(hlMap[prop], text, rex, value);
+        this.setReplaceText(hlStyles[prop], prop, text, rex, value);
       }      
     }
 
     // Animate highlights
     this.animateHighlight();    
   }
-
-  //Replace All function helper
-  // replaceAll(str, term, replacement) {
-  //   return str.replace(new RegExp(term, this.regexMod), replacement);
-  // }
 
   //Undo last change
   handleRevert() {
@@ -470,9 +454,7 @@ export default class TextAreaPlus extends LightningElement {
   }
 
   //Clean input for RegExp
-  escapeRegExp(str) {    
-    // const rx = new RegExp('[.*+?^${}()|[\]\\]', this.regexMod);
-    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    //return str.replace(rx, '\\$&');
+  escapeRegExp(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");    
   }
 }
