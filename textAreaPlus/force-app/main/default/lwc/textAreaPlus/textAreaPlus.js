@@ -151,37 +151,35 @@ export default class TextAreaPlus extends LightningElement {
   }
   
   @api validate() {
+    
     if (Number(this.maxLength) >= 0) {
       return { isValid: true };
-    }
-
-    if (!this.disableAdvancedTools) {
-      this.value = this.textValue;
-    }
-
-    let errorMessage = `You must make a selection in: ${this.label} to continue`;
-    if (this.required === true && !this.value) {
-      return { isValid: false, errorMessage };
     }
 
     if (this.disableAdvancedTools || this.warnOnly) {
       return { isValid: true };
     } 
 
-    //TODO: Handle over char limit in rich text
-    // else if (this.characterCap && this.characterCount > this.maxLength) {
-    //   //failure scenario so set tempValue in sessionStorage
-    //   sessionStorage.setItem("tempValue", this.value);
-    //   return {
-    //     isValid: false,
-    //     errorMessage:
-    //       "Cannot Advance - Character Limit Exceeded: " +
-    //       this.characterCount +
-    //       " > " +
-    //       this.maxLength,
-    //   };
-    // } 
-    else if (!this.isValidCheck) {
+    if (!this.disableAdvancedTools) {
+      this.value = this.textValue;
+    }
+
+    let errorMessage = 'This field is required';
+    if (this.required === true && (!this.value || this.value.Trim().length === 0)) {
+      this.isValidCheck = false;
+    }
+
+    if (this.showCharCounter && this.characterCount < 0) {
+      //failure scenario so set tempValue in sessionStorage
+      sessionStorage.setItem("tempValue", this.value);
+      errorMessage
+      return {
+        isValid: false,
+        errorMessage: "Cannot Advance - Character Limit Exceeded."
+      };
+    } 
+    
+    if (!this.isValidCheck) {
       //failure scenario so set tempValue in sessionStorage
       sessionStorage.setItem("tempValue", this.value);
       return {
@@ -369,18 +367,11 @@ export default class TextAreaPlus extends LightningElement {
   }
 
   //Search and Replace Search for Value
-  handleSearchChange(event) {
+  handleSearchReplaceChange(event) {
     //TODO: Fix infinite loop, block invalid chars @ keypress
-    this.searchTerm = event.target.value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  }
-
-  //Search and Replace Replace with Value
-  handleReplaceChange(event) {
-    //TODO: Fix infinite loop, block invalid chars @ keypress
-    this.replaceValue = event.target.value.replace(
-      /[.*+?^${}()|[\]\\]/g,
-      "\\$&"
-    );
+    const filteredValue = event.target.value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const targetValue = event.target.dataset.id === 'search' ? 'searchTerm' : 'replaceValue';
+    this[targetValue] = filteredValue; 
   }
 
   // Helper function to build text for search replace with
