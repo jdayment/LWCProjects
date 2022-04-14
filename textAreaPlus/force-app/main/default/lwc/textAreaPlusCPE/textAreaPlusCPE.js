@@ -36,7 +36,7 @@ export default class textAreaPlusCPE extends LightningElement {
         maxlenString: { value: null, valueDataType: DATA_TYPE.NUMBER, isCollection: false, label: 'Maximum number of characters allowed', helpText: 'If set, text length will be limited to this value, and a character counter will be displayed'            , helpTextRichText: 'If set, text length will be limited to this value, and a character counter will be displayed. NOTE: Rich text character count includes HTML not visible to the user and may not match visible text.' },
         placeHolder: { value: null, valueDataType: null, isCollection: true, label: 'Placeholder Text', helpText: 'Optional placeholder text' },
         textMode: { value: 'Rich Text', valueDataType: null, isCollection: false, label: 'Plain text or Rich text?'},
-        disableAdvancedTools: { value: null, valueDataType: null, isCollection: false, label: 'Disable Advanced Tools', helpText: 'Set to true to disable expanded Rich Text tools - Search/Replace, Auto-replace, and blocked words/sybmols' },
+        disableAdvancedTools: { value: null, valueDataType: null, isCollection: false, label: 'Hide Advanced Tools', helpText: 'Disable Advanced Tools - Search/Replace, Auto-replace, and blocked words/symbols.' },
         cb_disableAdvancedTools: {value: null, valueDataType: null, isCollection: false, label:''},
         disallowedWordsList: { value: null, valueDataType: null, isCollection: false, label: 'Blocked Words', helpText: 'Comma-separated list of words to block.  Example: bad,worse,worst' },
         disallowedSymbolsList: { value: null, valueDataType: null, isCollection: false, label: 'Blocked Symbols', helpText: 'Comma-separated list of symbols to block.  Example: /,@,*' },
@@ -107,8 +107,6 @@ export default class textAreaPlusCPE extends LightningElement {
         }
         return validity;
     }
-
- 
 
     /* LIFECYCLE HOOKS */
     connectedCallback() {
@@ -207,22 +205,20 @@ export default class textAreaPlusCPE extends LightningElement {
         this.dispatchEvent(valueChangedEvent);
     }
 
-    get isPlainText () {
-        let textType = this.inputValues.textMode.value
-        if(textType == 'plain')
-            return true;
-            return false;
-        }
+    eq(prop, value) {
+        return this.inputValues[prop]?.value === value;
+    }
 
-    get showAdvancedTools (){
-        let advancedTools = this.inputValues.cb_disableAdvancedTools.value
-        if(advancedTools == 'CB_TRUE')
-            return true;
-            return false;
-        } 
+    get isPlainText () {
+        return this.eq('textMode','plain');
+    }
+
+    get showAdvancedTools () {
+        return this.eq('cb_disableAdvancedTools','CB_TRUE');
+    } 
     
     get showCounterSettings() {
-        return this.inputValues?.cb_showCharCounter?.value === 'CB_TRUE';
+        return this.eq('cb_showCharCounter','CB_TRUE');
     }
 }
 

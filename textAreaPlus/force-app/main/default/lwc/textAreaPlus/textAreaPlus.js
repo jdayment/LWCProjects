@@ -151,7 +151,6 @@ export default class TextAreaPlus extends LightningElement {
   }
   
   @api validate() {
-    
     if (Number(this.maxLength) >= 0) {
       return { isValid: true };
     }
@@ -185,8 +184,8 @@ export default class TextAreaPlus extends LightningElement {
       return {
         isValid: false,
         errorMessage:
-          "Cannot Advance - Invalid Symbols/Words Remain in Rich Text: " +
-          this.runningBlockedInput.join(', '),
+          `Cannot Advance - Invalid Symbols/Words Remain in Rich Text:
+          ${this.runningBlockedInput.join(', ')}`
       };
     } else {
       return { isValid: false };

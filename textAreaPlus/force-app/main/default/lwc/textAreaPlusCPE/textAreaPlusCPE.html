@@ -36,6 +36,8 @@
 
          <template if:false={showAdvancedTools}>
 
+            <c-fsc_flow-banner banner-color="#354230" banner-label="Advanced Tools"></c-fsc_flow-banner>
+
             <c-fsc_flow-combobox name="disallowedWordsList" value={inputValues.disallowedWordsList.value} builder-context-filter-type="String"
             label={inputValues.disallowedWordsList.label} onvaluechanged={handleFlowComboboxValueChange} field-level-help={inputValues.disallowedWordsList.helpText}></c-fsc_flow-combobox>
 
@@ -53,6 +55,8 @@
     checked={inputValues.cb_showCharCounter.value} oncheckboxchanged={handleCheckboxChange}></c-fsc_flow-checkbox>
 
     <template if:true={showCounterSettings}>
+        <c-fsc_flow-banner banner-color="#354230" banner-label="Character Counter"></c-fsc_flow-banner>
+
         <c-fsc_flow-combobox name="maxlenString" value={inputValues.maxlenString.value} builder-context-filter-type="String"
             label={inputValues.maxlen.label} onvaluechanged={handleFlowComboboxValueChange}
             field-level-help={inputValues.maxlenString.helpText}></c-fsc_flow-combobox>
