@@ -55,6 +55,10 @@ export default class TextAreaPlus extends LightningElement {
   instructions =
     "1)  Find and Replace:  Use Magnifying Glass, Enter Terms and Use Check Mark.  " +
     "2)  Auto Replace:  If your Admin has configured it, Use Merge Icon to replace suggested terms.";
+  // All possible options as of SP22
+  formats = ['font','size','bold','italic','underline','strike','list','indent','align',
+    'link','image','clean','table','header','color','background',
+    'code','code-block','script','blockquote','direction'];
 
   // If either search or autoreplace is enabled, allow case insensitive
   get showCaseInsensitive() {
@@ -169,7 +173,7 @@ export default class TextAreaPlus extends LightningElement {
     }
   }
 
-  failValidationObject(errorMessage) {
+  getFailObject(errorMessage) {
     //failure scenario so set tempValue in sessionStorage
     sessionStorage.setItem("tempValue", this.value);
     return {
@@ -184,17 +188,17 @@ export default class TextAreaPlus extends LightningElement {
 
     // Case 1 - required has been checked, but there's not text
     if (this.required === true && this.len <= 0) {
-      return this.failValidationObject('Cannot Advance - Field is Required.');
+      return this.getFailObject('Cannot Advance - Field is Required.');
     }
 
     // Case 1 - required has been checked, but there's not text
     if (this.minlen > 0 && this.len < this.minlen) {
-      return this.failValidationObject(`Cannot Advance - Minimum length of ${this.minlen} characters is required.`);
+      return this.getFailObject(`Cannot Advance - Minimum length of ${this.minlen} characters is required.`);
     }
 
     // Case 2, text length is negative - this can happen from copy and paste
     if (this.showCharCounter && this.len < 0) {
-      return this.failValidationObject('Cannot Advance - Character Limit Exceeded.');
+      return this.getFailObject('Cannot Advance - Character Limit Exceeded.');
     }
 
     // If advanced tools haven't been enabled - we're done here
@@ -206,36 +210,12 @@ export default class TextAreaPlus extends LightningElement {
     // Case 3: Advanced tools only, invalid words have been used
     if (!this.isValidCheck) {
       const msg = `Cannot Advance - Invalid Symbols/Words Remain in Rich Text: ${this.runningBlockedInput.join(', ')}`
-      return this.failValidationObject(msg);
+      return this.getFailObject(msg);
     }
 
     // If we're here, it's valid
     return { isValid: true };
   }
-
-  formats = [
-    "font",
-    "size",
-    "bold",
-    "italic",
-    "underline",
-    "strike",
-    "list",
-    "indent",
-    "align",
-    "link",
-    "image",
-    "clean",
-    "table",
-    "header",
-    "color",
-    "background",
-    "code",
-    "code-block",
-    "script",
-    "blockquote",
-    "direction",
-  ];
 
   // Helper for removing html tags for accurate rich text length count
   stripHtml(str) {
