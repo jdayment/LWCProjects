@@ -19,6 +19,7 @@ const FLOW_EVENT_TYPE = {
 const VALIDATEABLE_INPUTS = ['c-fsc_flow-combobox'];
 export default class textAreaPlusCPE extends LightningElement {
     @api automaticOutputVariables;
+    minlenErr = false;
     typeValue;
     _builderContext = {};
     _values = [];
@@ -49,6 +50,7 @@ export default class textAreaPlusCPE extends LightningElement {
         showCharCounter: { value: null, valueDataType: null, isCollection: false, label: 'Character Counter', helpText: 'Display counter with max chars, chars left using customizable text' },
         cb_showCharCounter: {value: null, valueDataType: null, isCollection: false, label:''},
         maxlen: { value: null, valueDataType: DATA_TYPE.NUMBER, isCollection: false, label: 'Maximum characters allowed' },
+        minlen: { value: null, valueDataType: DATA_TYPE.NUMBER, isCollection: false, label: 'Minimum characters required', helpText: 'Require a minimum number of characters.  If empty, no minimums will be enforced.' },
         placeHolder: { value: null, valueDataType: null, isCollection: true, label: 'Placeholder Text', helpText: 'Optional placeholder text' },
         textMode: { value: 'rich', valueDataType: null, isCollection: false, label: 'Plain text or Rich text?'},
         advancedTools: { value: null, valueDataType: null, isCollection: false, label: 'Enable Advanced Tools', helpText: 'Advanced Tools - Search/Replace, Auto-replace, and blocked words/symbols.' },
@@ -111,6 +113,16 @@ export default class textAreaPlusCPE extends LightningElement {
                 }
             }
         }
+
+        // Enforce min length <= max length
+        this.minlenErr = Number(this.inputValues.maxlen.value) > 0 && Number(this.inputValues.minlen.value) >= Number(this.inputValues.maxlen.value);
+        if (this.minlenErr) {
+            validity.push({
+                key: 'minlenTooSmall',
+                errorString: 'Minimum length must be less than maximum length',
+            });
+        }
+        
         return validity;
     }
 
@@ -163,6 +175,9 @@ export default class textAreaPlusCPE extends LightningElement {
             // Force update max length value so chars remaining template visibility is reflected
             if (event.target.name === 'maxlen') {
                 this.inputValues.maxlen.value = event.detail.newValue;
+            }
+            if (event.target.name === 'minlen') {
+                this.inputValues.minlen.value = event.detail.newValue;
             }
             this.dispatchFlowValueChangeEvent(event.target.name, event.detail.newValue, event.detail.newValueDataType);
         }

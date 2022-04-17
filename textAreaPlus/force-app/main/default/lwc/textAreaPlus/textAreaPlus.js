@@ -31,6 +31,7 @@ export default class TextAreaPlus extends LightningElement {
   @track errorMessage;
   @track isValidCheck = true;
   @track maxLength;
+  @track minLength;
   @track replaceValue = "";
   @track runningBlockedInput = [];
   @track searchButton = false;
@@ -144,6 +145,16 @@ export default class TextAreaPlus extends LightningElement {
   }
 
   @api 
+  get minlen() {
+    return this.minLength;
+  }
+  set minlen(value) {
+    if (!Number.isNaN(value)) {
+      this.minLength = Number(value);
+    };
+  }
+
+  @api 
   get value() {
     return this.textValue;
   }
@@ -162,9 +173,10 @@ export default class TextAreaPlus extends LightningElement {
   }
   
   @api validate() {
-    if (Number(this.maxLength) >= 0) {
-      return { isValid: true };
-    }
+    
+    // if (Number(this.maxLength) >= 0) {
+    //   return { isValid: true };
+    // }
 
     if (!this.advancedTools || this.warnOnly) {
       return { isValid: true };
@@ -314,15 +326,16 @@ export default class TextAreaPlus extends LightningElement {
 
   //Handle updates to Rich Text field
   handleTextChange(event) {
-    // Rich Text with out enhanced tools
+    this.textValue = event.target.value;
+    
+    console.log(this.textValue);
+    
     if (!this.advancedTools) {
-      this.textValue = event.target.value;      
+      // We're done if advanced tools aren't enabled
       return;
     }
     
-    this.runningBlockedInput = [];
-    this.textValue = event.target.value;
-
+    this.runningBlockedInput = [];    
     // base case, there are no disallowed symbols or words
     if (!this.disallowedSymbolsRegex && !this.disallowedWordsRegex) {
       this.isValidCheck = true;      
@@ -336,7 +349,7 @@ export default class TextAreaPlus extends LightningElement {
 
     // TODO: why are these the same
     if (this.runningBlockedInput.length > 0) {
-      this.errorMessage = "Error - Invalid Symbols/Words found: " +
+      this.errorMessage = "Error - Invalid Symbols/Words:" +
         this.runningBlockedInput.join(', ');
     } else {
       this.errorMessage = null;
@@ -380,8 +393,9 @@ export default class TextAreaPlus extends LightningElement {
   //Search and Replace Search for Value
   handleSearchReplaceChange(event) {
     //TODO: Fix infinite loop, block invalid chars @ keypress
-    const filteredValue = event.target.value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const filteredValue = this.escapeRegExp(event.target.value);
     const targetValue = event.target.dataset.id === 'search' ? 'searchTerm' : 'replaceValue';
+    console.log('chg'+ event.target.dataset.id, filteredValue);
     this.escapedVals[targetValue] = filteredValue; 
   }
 
@@ -458,8 +472,12 @@ export default class TextAreaPlus extends LightningElement {
     this.textValue = this.undoStack.pop();    
   }
 
-  //Clean input for RegExp
+  //Clean input for RegExp and matching rich text
   escapeRegExp(str) {
+    str = str.replaceAll('<','&lt;');
+    str = str.replaceAll('>','&gt;');
+    str = str.replaceAll('>','&amp;');
     return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");    
   }
+
 }

@@ -10,6 +10,7 @@
     <targetConfigs>
         <targetConfig targets="lightning__FlowScreen" configurationEditor="c-text-area-plus-c-p-e">
             <property name="maxlen" label="Maximum Length" type="String" role="inputOnly" />
+            <property name="minlen" label="Minimum Length" type="String" role="inputOnly" />
             <property name="value" label="Text Value" type="String" />
             <property name="charsLeftTemplate" label="Chars Left Template" type="String" />
             <property name="label" label="Label" type="String" role="inputOnly" />
