@@ -9,16 +9,15 @@
     </targets>
     <targetConfigs>
         <targetConfig targets="lightning__FlowScreen" configurationEditor="c-text-area-plus-c-p-e">
-            <property name="maxlen" label="Maximum Length" type="Integer" role="inputOnly" />
-            <property name="maxlenString" label="Maximum Length" type="String" role="inputOnly" />
+            <property name="maxlen" label="Maximum Length" type="String" role="inputOnly" />
             <property name="value" label="Text Value" type="String" />
             <property name="charsLeftTemplate" label="Chars Left Template" type="String" />
             <property name="label" label="Label" type="String" role="inputOnly" />
             <property name="placeHolder" label="Placeholder Text" type="String" role="inputOnly" />
-            <property name="textMode" label="Text Mode" type="String" role="inputOnly" description="Choose between Rich or Plain text" />
+            <property name="textMode" label="Text Mode" type="String" default="Rich Text" role="inputOnly" description="Choose between Rich or Plain text" />
 
-            <property label="Disable Advanced Tools" name="disableAdvancedTools" type="Boolean" role="inputOnly" description="Hide and Disable Advanced Tools - Search/Replace, Auto-replace, and blocked words/symbols." />
-            <property name="cb_disableAdvancedTools" type="String" role="inputOnly" />
+            <property label="Advanced Tools" name="advancedTools" type="Boolean" role="inputOnly" description="Enable Advanced Tools - Search/Replace, Auto-replace, and blocked words/symbols." />
+            <property name="cb_advancedTools" type="String" role="inputOnly" />
             <property label="Blocked Words" name="disallowedWordsList" type="String" role="inputOnly" description="Comma-separated list of words to block.  Example: bad,worse,worst" />
             <property label="Blocked Symbols" name="disallowedSymbolsList" type="String" role="inputOnly" description="Comma-separated list of words to block.  Example: /,@,*" />
             <property label="Auto Replace Map" name="autoReplaceMap" type="String" role="inputOnly" description="JSON for key:value pairs you want to replace.  Key = value to replace, Value = value to replace with.  Example: {&quot;Test&quot;:&quot;GreatTest™&quot;}" />

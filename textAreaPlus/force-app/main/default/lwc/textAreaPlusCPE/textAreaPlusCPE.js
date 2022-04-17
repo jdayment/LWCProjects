@@ -25,19 +25,34 @@ export default class textAreaPlusCPE extends LightningElement {
     _flowVariables = [];
     _typeMappings = [];
     rendered;
-
+    // Help for Rich Text Options
+    textBannerInfo = [
+        {label: 'Component Label', helpText: 'Header Label'},
+        {label: 'Placeholder Text', helpText: 'Initial Placeholder Text'},
+        {label: 'Text Value', helpText: 'Initial Text Value'}            
+    ];
+    advToolsInfo = [
+        {label: 'Blocked Words', helpText: 'List of comma delimited words to block'},
+        {label: 'Blocked Symbols', helpText: 'List of comma delimited symbols to block'},
+        {label: 'Autoreplace Map', helpText: 'List of words and replacements in JSON format'},
+        {label: 'Warning Only', helpText: 'Show warnings, but allow user to continue'},
+        {label: 'Note', helpText: 'Enabling Advanced Tools will always add Find and Replace'},
+    ];
+    charCounterInfo = [
+        {label: 'Max Characters Allowed', helpText: 'Limits number of characters'},
+        {label: 'Characters Remaining Template', helpText: '$L - Characters Left, $M - Max Characters, $R - Remaining Characters'},
+    ];
     @track inputValues = {
         value: { value: null, valueDataType: null, isCollection: false, label: 'Text Value', label: "Initial Text Value" },
-        charsLeftTemplate: { value: '$M/$L characters remaining', valueDataType: null, isCollection: false, label: 'Characters Remaining Template', helpText: 'Display a custom message for remaining characters with tokens: $R for remaining chars, $L for current length, and $M for max allowed characters.' },
+        charsLeftTemplate: { value: "$L/$M Characters", valueDataType: null, isCollection: false, label: 'Characters Remaining Template', helpText: 'Display a custom message for remaining characters with tokens: $R for remaining chars, $L for current length, and $M for max allowed characters.' },
         label: { value: null, valueDataType: null, isCollection: false, label: 'Component Label' },
-        showCharCounter: { value: null, valueDataType: null, isCollection: false, label: 'Show Character Counter', helpText: 'Display counter with max chars, chars left using customizable text' },
+        showCharCounter: { value: null, valueDataType: null, isCollection: false, label: 'Character Counter', helpText: 'Display counter with max chars, chars left using customizable text' },
         cb_showCharCounter: {value: null, valueDataType: null, isCollection: false, label:''},
-        maxlen: { value: null, valueDataType: DATA_TYPE.NUMBER, isCollection: false, label: 'Maximum number of characters allowed' },
-        maxlenString: { value: null, valueDataType: DATA_TYPE.NUMBER, isCollection: false, label: 'Maximum number of characters allowed', helpText: 'If set, text length will be limited to this value, and a character counter will be displayed'            , helpTextRichText: 'If set, text length will be limited to this value, and a character counter will be displayed. NOTE: Rich text character count includes HTML not visible to the user and may not match visible text.' },
+        maxlen: { value: null, valueDataType: DATA_TYPE.NUMBER, isCollection: false, label: 'Maximum characters allowed' },
         placeHolder: { value: null, valueDataType: null, isCollection: true, label: 'Placeholder Text', helpText: 'Optional placeholder text' },
-        textMode: { value: 'Rich Text', valueDataType: null, isCollection: false, label: 'Plain text or Rich text?'},
-        disableAdvancedTools: { value: null, valueDataType: null, isCollection: false, label: 'Hide Advanced Tools', helpText: 'Disable Advanced Tools - Search/Replace, Auto-replace, and blocked words/symbols.' },
-        cb_disableAdvancedTools: {value: null, valueDataType: null, isCollection: false, label:''},
+        textMode: { value: 'rich', valueDataType: null, isCollection: false, label: 'Plain text or Rich text?'},
+        advancedTools: { value: null, valueDataType: null, isCollection: false, label: 'Enable Advanced Tools', helpText: 'Advanced Tools - Search/Replace, Auto-replace, and blocked words/symbols.' },
+        cb_advancedTools: {value: null, valueDataType: null, isCollection: false, label:''},
         disallowedWordsList: { value: null, valueDataType: null, isCollection: false, label: 'Blocked Words', helpText: 'Comma-separated list of words to block.  Example: bad,worse,worst' },
         disallowedSymbolsList: { value: null, valueDataType: null, isCollection: false, label: 'Blocked Symbols', helpText: 'Comma-separated list of symbols to block.  Example: /,@,*' },
         autoReplaceMap: { value: null, valueDataType: null, isCollection: false, label: 'Autoreplace Map', helpText: 'JSON for key:value pairs you want to replace.  Key = value to replace, Value = value to replace with.  Example: {"Test":"Great Test"}' },
@@ -47,17 +62,8 @@ export default class textAreaPlusCPE extends LightningElement {
         cb_required: {value: null, valueDataType: null, isCollection: false, label:''},
     };
 
-    get bannerInfo() {
-        // returns common attributes/helptext for rich and plain text
-        return [
-            {label: 'Component Label', helpText: 'Header Label'},
-            {label: 'Placeholder Text', helpText: 'Initial Placeholder Text'},
-            {label: 'Text Value', helpText: 'Initial Text Value'}            
-        ];
-    }
-
-    get hasValidMaxLength() {        
-        return this.inputValues.maxlenString.value && Number(this.inputValues.maxlenString.value) > 0;
+    get hasValidMaxLength() {
+        return this.inputValues.maxlen.value && Number(this.inputValues.maxlen.value) > 0;
     }
     
     @api get builderContext() {
@@ -127,15 +133,15 @@ export default class textAreaPlusCPE extends LightningElement {
     initializeValues(value) {
         if (this._values && this._values.length) {
             this._values.forEach(curInputParam => {
-                if (curInputParam.name && this.inputValues[curInputParam.name]) {
+                const inputVal = curInputParam.name && this.inputValues[curInputParam.name];
+                if (inputVal) {
                     console.log('in initializeValues: ' + curInputParam.name + ' = ' + curInputParam.value);
-                    // console.log('in initializeValues: '+ JSON.stringify(curInputParam));
-                    if (this.inputValues[curInputParam.name].serialized) {
-                        this.inputValues[curInputParam.name].value = JSON.parse(curInputParam.value);
+                    if (inputVal.serialized) {
+                        inputVal.value = JSON.parse(curInputParam.value);
                     } else {
-                        this.inputValues[curInputParam.name].value = curInputParam.value;
+                        inputVal.value = curInputParam.value;
                     }
-                    this.inputValues[curInputParam.name].valueDataType = curInputParam.valueDataType;
+                    inputVal.valueDataType = curInputParam.valueDataType;
                 }
             });
         }
@@ -155,22 +161,10 @@ export default class textAreaPlusCPE extends LightningElement {
     handleFlowComboboxValueChange(event) {
         if (event.target && event.detail) {
             // Force update max length value so chars remaining template visibility is reflected
-            if (event.target.name === 'maxlenString') {
-                this.inputValues.maxlenString.value = event.detail.newValue;
+            if (event.target.name === 'maxlen') {
+                this.inputValues.maxlen.value = event.detail.newValue;
             }
-            this.dispatchFlowValueChangeEvent(event.target.name, event.detail.newValue, event.detail.newValueDataType);            
-        }
-    }
-
-    handleValueChange(event) {
-        if (event.detail && event.currentTarget.name) {
-            let dataType = DATA_TYPE.STRING;
-            if (event.currentTarget.type == 'checkbox') dataType = DATA_TYPE.BOOLEAN;
-            if (event.currentTarget.type == 'number') dataType = DATA_TYPE.NUMBER;
-            if (event.currentTarget.type == 'integer') dataType = DATA_TYPE.INTEGER;
-
-            let newValue = event.currentTarget.type === 'checkbox' ? event.currentTarget.checked : event.detail.value;
-            this.dispatchFlowValueChangeEvent(event.currentTarget.name, newValue, dataType);
+            this.dispatchFlowValueChangeEvent(event.target.name, event.detail.newValue, event.detail.newValueDataType);
         }
     }
 
@@ -214,7 +208,7 @@ export default class textAreaPlusCPE extends LightningElement {
     }
 
     get showAdvancedTools () {
-        return this.eq('cb_disableAdvancedTools','CB_TRUE');
+        return this.eq('cb_advancedTools','CB_TRUE');
     } 
     
     get showCounterSettings() {

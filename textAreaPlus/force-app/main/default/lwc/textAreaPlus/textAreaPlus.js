@@ -14,31 +14,33 @@ const hlTimers = [
   {style: 'mid', ms: 0},
   {style: 'bright', ms: 75}, // main highlight - bright
   {style: 'mid', ms: 525}, // start fading out for 75ms
-  {style: 'none', ms: 600} // reset to text without highlight html
+  {style: 'none', ms: 600, finalItem: true} // reset to text without highlight html
 ];
 
 // Convert CB values to a boolean
 function cbToBool(value) {
   return value === "CB_TRUE";
 }
+
 export default class TextAreaPlus extends LightningElement {
   // Component facing props
-  @track _charsLeftTemplate;
+  @track _charsLeftTemplate = '$L/$M Characters'; // Must match CPE.js default setting
   @track autoReplaceEnabled = false;
-  @track dirty = false;
   @track disallowedSymbolsRegex;
   @track disallowedWordsRegex;
   @track errorMessage;
   @track isValidCheck = true;
-  @track undoText;
   @track maxLength;
-  @track oldRichText;
   @track replaceValue = "";
   @track runningBlockedInput = [];
   @track searchButton = false;
   @track searchTerm = "";
   @track textValue;
   @track ignoreCase = true;
+  @track animating = false;
+  @track undoStack = [];
+  @track escapedVals = {searchTerm: '', replaceValue: ''};
+  
   hlText;
   applyTerm = "";
   regTerm = "";
@@ -59,6 +61,23 @@ export default class TextAreaPlus extends LightningElement {
   // If either search or autoreplace is enabled, allow case insensitive
   get showCaseInsensitive() {
     return this.searchButton || this.autoReplaceEnabled;
+  }
+
+  // This is not a Daft Punk song
+  get dirty() {
+    return this.undoStack.length > 0;
+  }
+
+  // Show help text appropriately based on whether Suggested Terms is enabled
+  get caseInsensitiveHelpText() {
+    let text = '';
+    if (this.showCaseInsensitive) {
+      text += `Ignore Case for Search and Replace`;
+    } 
+    if (this.autoReplaceEnabled) {
+      text += ' and Suggested Terms';
+    }
+    return text;
   }
 
   get ignoreCaseVariant() {
@@ -87,14 +106,14 @@ export default class TextAreaPlus extends LightningElement {
   }
 
   get showCounter() {
-    return this.maxlen && this.maxlen > 0;
+    return this.maxLength && this.maxLength > 0;
   }
 
   @api
-  get disableAdvancedTools() {
-    return cbToBool(this.cb_disableAdvancedTools);
+  get advancedTools() {
+    return cbToBool(this.cb_advancedTools);
   }
-  @api cb_disableAdvancedTools;
+  @api cb_advancedTools;
 
   @api
   get warnOnly() {
@@ -119,16 +138,8 @@ export default class TextAreaPlus extends LightningElement {
     return this.maxLength;
   }
   set maxlen(value) {
-    this.maxLength = value;
-  }
-  
-  @api
-  get maxlenString() {
-    return this.maxlen;
-  }
-  set maxlenString(value) {
     if (!Number.isNaN(value)) {
-      this.maxlen = value
+      this.maxLength = Number(value);
     };
   }
 
@@ -155,11 +166,11 @@ export default class TextAreaPlus extends LightningElement {
       return { isValid: true };
     }
 
-    if (this.disableAdvancedTools || this.warnOnly) {
+    if (!this.advancedTools || this.warnOnly) {
       return { isValid: true };
     } 
 
-    if (!this.disableAdvancedTools) {
+    if (this.advancedTools) {
       this.value = this.textValue;
     }
 
@@ -235,7 +246,7 @@ export default class TextAreaPlus extends LightningElement {
       }
     }
 
-    if (!this.disableAdvancedTools) {
+    if (this.advancedTools) {
       this.textValue = this.value || "";
       // Build regex for disallowed symbols and words (if listed)
       this.setRegex('Symbols', s=>`\\${s}`);
@@ -301,9 +312,35 @@ export default class TextAreaPlus extends LightningElement {
     this.dispatchEvent(attributeChangeEvent);
   }
 
-  //Handle updates to Rich Text field with no enhanced features
-  handleValueChange(event) {
+  //Handle updates to Rich Text field
+  handleTextChange(event) {
+    // Rich Text with out enhanced tools
+    if (!this.advancedTools) {
+      this.textValue = event.target.value;      
+      return;
+    }
+    
+    this.runningBlockedInput = [];
     this.textValue = event.target.value;
+
+    // base case, there are no disallowed symbols or words
+    if (!this.disallowedSymbolsRegex && !this.disallowedWordsRegex) {
+      this.isValidCheck = true;      
+      return;
+    }
+    
+    const text = this.stripHtml(event.target.value);
+    if (this.checkBlockedItems(text)) {
+      this.isValidCheck = false;
+    }
+
+    // TODO: why are these the same
+    if (this.runningBlockedInput.length > 0) {
+      this.errorMessage = "Error - Invalid Symbols/Words found: " +
+        this.runningBlockedInput.join(', ');
+    } else {
+      this.errorMessage = null;
+    }
   }
 
   handleRichTextKeyDown(event) {
@@ -335,31 +372,6 @@ export default class TextAreaPlus extends LightningElement {
     this.runningBlockedInput = Array.from(new Set([...this.runningBlockedInput,...items]));
   }
 
-  //Handle updates to Rich Text field with enhanced features
-  handleTextChange(event) {    
-    this.runningBlockedInput = [];
-    this.textValue = event.target.value;
-
-    // base case, there are no disallowed symbols or words
-    if (!this.disallowedSymbolsRegex && !this.disallowedWordsRegex) {
-      this.isValidCheck = true;      
-      return;
-    }
-    
-    const text = this.stripHtml(event.target.value);
-    if (this.checkBlockedItems(text)) {
-      this.isValidCheck = false;
-    }
-
-    // TODO: why are these the same
-    if (this.runningBlockedInput.length > 0) {
-      this.errorMessage = "Error - Invalid Symbols/Words found: " +
-        this.runningBlockedInput.join(', ');
-    } else {
-      this.errorMessage = null;
-    }
-  }
-
   //Handle initiation of Search and Replace
   handleOpenSearch(event) {
     this.searchButton = !this.searchButton;
@@ -370,7 +382,7 @@ export default class TextAreaPlus extends LightningElement {
     //TODO: Fix infinite loop, block invalid chars @ keypress
     const filteredValue = event.target.value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const targetValue = event.target.dataset.id === 'search' ? 'searchTerm' : 'replaceValue';
-    this[targetValue] = filteredValue; 
+    this.escapedVals[targetValue] = filteredValue; 
   }
 
   // Helper function to build text for search replace with
@@ -382,12 +394,14 @@ export default class TextAreaPlus extends LightningElement {
 
   //Execute Search and REplace
   searchReplace() {
-    this.undoText = 'Undo Find and Replace';
+    if (this.escapedVals.searchTerm === '') {
+      // This will replace between every character!  So let's just not do anything here.
+      return;
+    }
     // prep for undo
-    this.oldRichText = this.textValue;
-    this.dirty = true;
-    const term = new RegExp(this.escapeRegExp(this.searchTerm), this.regexMod);
-    const value = this.escapeRegExp(this.replaceValue);    
+    this.undoStack.push(this.textValue);
+    const term = new RegExp(this.escapedVals.searchTerm, this.regexMod);
+    const value = this.escapedVals.replaceValue;
 
     // Store the text in three forms: 
     // no highlight (none), bright highlight (bright), and mid-level highlight (mid)
@@ -403,24 +417,26 @@ export default class TextAreaPlus extends LightningElement {
   // pseudo animated flash highlight of replacement text
   // Use array of animation timing to flash, then remove highlight
   animateHighlight() {
+    this.animating = true;
     for (const timer of hlTimers) {
       this.setHighlightTimer(timer);
     }
   }
 
   // Sets a future highlight change
-  setHighlightTimer({style, ms}) {
+  setHighlightTimer({style, ms, finalItem}) {
     setTimeout(() => {
       this.textValue = this.hlText[style];
+      if (finalItem) {
+        // re-enable any buttons related to animating
+        this.animating = false;
+      }
     }, ms);
   }
   
   //Execute Auto-Replacement based on map.
   applySuggested(event) {
-    this.undoText = 'Undo Apply Suggestions';
-    this.oldRichText = this.textValue;
-    this.dirty = true;
-    
+    this.undoStack.push(this.textValue);
     // Reset all text values in the highlight map
     // so highlights will work correctly
     this.hlText = {};
@@ -439,8 +455,7 @@ export default class TextAreaPlus extends LightningElement {
 
   //Undo last change
   handleRevert() {
-    this.textValue = this.oldRichText;
-    this.dirty = false;
+    this.textValue = this.undoStack.pop();    
   }
 
   //Clean input for RegExp

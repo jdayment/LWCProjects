@@ -13,38 +13,23 @@
     </template>    
     <template if:false={plainText}>
         <!-- Start Rich Text Input Section -   -->
-        <template if:true={disableAdvancedTools}>
-            <div>
-                <lightning-input-rich-text value={value} onchange={handleValueChange} 
-                    formats={formats} label={label} required={required} onkeydown={handleRichTextKeyDown}
-                    label-visible="true" placeholder={placeHolder}></lightning-input-rich-text>
-                    <!-- Start Rich Text Character Counter -->
-                    <template if:true={showCharCounter}>
-                        <div class={charsLeftClass}>
-                            {counterText}
-                        </div>
-                    </template>
-                    <!-- End Rich Text Character Counter -->
+        <lightning-input-rich-text value={value} formats={formats} onchange={handleTextChange}
+            label={label} required={required} onkeydown={handleRichTextKeyDown} valid={isValidCheck}
+            message-when-bad-input={errorMessage}
+            label-visible="true" placeholder={placeHolder}>
+        </lightning-input-rich-text>
+        
+        <!-- Start Rich Text Character Counter -->
+        <template if:true={showCharCounter}>
+            <div class={charsLeftClass}>
+                {counterText}
             </div>
         </template>
+        <!-- End Rich Text Character Counter -->
         <!-- End Rich Text Input Section-->
 
         <!-- Start Entry Enhancements - only display if enableAdvancedTools activated -->
-        <template if:false={disableAdvancedTools}>
-            <div>
-                <lightning-input-rich-text value={value} formats={formats} label={label}
-                    onchange={handleTextChange} onkeydown={handleRichTextKeyDown}
-                    label-visible="true" valid={isValidCheck}
-                    message-when-bad-input={errorMessage} required={required} placeholder={placeHolder}>
-                </lightning-input-rich-text>
-                <!-- Start Rich Text Character Counter -->
-                <template if:true={showCharCounter}>
-                    <div class={charsLeftClass}>
-                        {counterText}
-                    </div>
-                </template>
-                <!-- End Rich Text Character Counter -->
-            </div>
+        <template if:true={advancedTools}>
             <div class="slds-grid slds-wrap slds-var-p-around_xx-small slds-m-bottom_x-small lgc-bg">
                 <lightning-button-group>
                     <div class="slds-var-p-around_xxx-small">
@@ -64,14 +49,14 @@
                                 value={replaceValue} onchange={handleSearchReplaceChange} data-id="replace"></lightning-input>
                         </div>
                         <div class="slds-var-p-left_xxx-small slds-var-p-right_small slds-var-p-top_xxx-small slds-var-p-bottom_xxx-small">
-                            <lightning-button-icon variant="brand" size="medium" icon-name="utility:check"
+                            <lightning-button-icon variant="brand" size="medium" icon-name="utility:check" disabled={animating}
                                 onclick={searchReplace} alternative-text="Search and Replace" tooltip="Search and Replace">
                             </lightning-button-icon>
                         </div>                        
                     </template>
                     <template if:true={autoReplaceEnabled}>
                         <div class="slds-var-p-around_xxx-small">
-                            <lightning-button-icon variant="border-filled" size="medium" icon-name="utility:merge"
+                            <lightning-button-icon variant="border-filled" size="medium" icon-name="utility:merge" disabled={animating}
                                 onclick={applySuggested} alternative-text="Apply Suggested Terms" tooltip="Apply Suggested Terms">
                             </lightning-button-icon>
                         </div>
@@ -79,14 +64,14 @@
                     <template if:true={showCaseInsensitive}>
                         <div class="slds-var-p-left_xxx-small slds-var-p-right_small slds-var-p-top_xxx-small slds-var-p-bottom_xxx-small">
                             <lightning-button-icon variant={ignoreCaseVariant} size="medium" icon-name="utility:text"
-                                onclick={handleIgnoreCaseToggle} alternative-text="Case Insensitive Search/Suggested Terms" tooltip="Case Insensitive Search/Suggested Terms">
+                                onclick={handleIgnoreCaseToggle} alternative-text={caseInsensitiveHelpText} tooltip={caseInsensitiveHelpText}>
                             </lightning-button-icon>
                         </div>
                     </template>
                     <template if:true={dirty}>
                         <div class="slds-var-p-around_xxx-small">
                             <lightning-button-icon variant="border-filled" size="medium" icon-name="utility:undo"
-                                onclick={handleRevert} alternative-text={undoText} tooltip={undoText}>
+                                onclick={handleRevert} alternative-text="Undo Replace" tooltip="Undo Replace">
                             </lightning-button-icon>
                         </div>
                     </template>                    
