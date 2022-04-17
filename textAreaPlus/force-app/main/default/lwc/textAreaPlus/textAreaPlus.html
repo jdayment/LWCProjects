@@ -2,7 +2,8 @@
     <template if:true={plainText}>
         <!-- Start Plain Text / TextArea Section -->
             <div class="slds-var-p-around_x-small">
-                <lightning-textarea value={textValue} label={label} max-length={maxLength} onchange={handleChange} placeholder={placeHolder} required={required}></lightning-textarea>
+                <lightning-textarea value={textValue} label={label} max-length={maxLength} onchange={handleChange}
+                    placeholder={placeHolder} required={required}></lightning-textarea>
             </div>
             <template if:true={showCharCounter}>
                 <div class={charsLeftClass}>
@@ -10,7 +11,7 @@
                 </div>
             </template>
         <!-- Start Plain Text / TextArea Section -->
-    </template>    
+    </template>
     <template if:false={plainText}>
         <!-- Start Rich Text Input Section -   -->
         <lightning-input-rich-text value={value} formats={formats} onchange={handleTextChange}
@@ -18,7 +19,7 @@
             message-when-bad-input={errorMessage}
             label-visible="true" placeholder={placeHolder}>
         </lightning-input-rich-text>
-        
+
         <!-- Start Rich Text Character Counter -->
         <template if:true={showCharCounter}>
             <div class={charsLeftClass}>
@@ -41,7 +42,7 @@
                     </div>
                     <template if:true={searchButton}>
                         <div class="slds-var-p-around_xxx-small">
-                            <lightning-input type="text" placeholder="Search Text" variant="label-hidden" 
+                            <lightning-input type="text" placeholder="Search Text" variant="label-hidden"
                                 value={searchTerm} onchange={handleSearchReplaceChange} data-id="search"></lightning-input>
                         </div>
                         <div class="slds-var-p-around_xxx-small">
@@ -52,7 +53,7 @@
                             <lightning-button-icon variant="brand" size="medium" icon-name="utility:check" disabled={animating}
                                 onclick={searchReplace} alternative-text="Search and Replace" tooltip="Search and Replace">
                             </lightning-button-icon>
-                        </div>                        
+                        </div>
                     </template>
                     <template if:true={autoReplaceEnabled}>
                         <div class="slds-var-p-around_xxx-small">
@@ -74,13 +75,13 @@
                                 onclick={handleRevert} alternative-text="Undo Replace" tooltip="Undo Replace">
                             </lightning-button-icon>
                         </div>
-                    </template>                    
+                    </template>
                     <div class="slds-var-p-left_x-small slds-var-p-right_xxx-small slds-var-p-top_xx-small slds-var-p-bottom_xxx-small">
                         <lightning-helptext content={instructions}></lightning-helptext>
                     </div>
                 </lightning-button-group>
             </div>
         </template>
-        <!-- End Entry Enhancements --> 
+        <!-- End Entry Enhancements -->
     </template>
 </template>
