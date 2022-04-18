@@ -173,9 +173,12 @@ export default class TextAreaPlus extends LightningElement {
     }
   }
 
-  getFailObject(errorMessage) {
+  getFailObject(errors) {
     //failure scenario so set tempValue in sessionStorage
     sessionStorage.setItem("tempValue", this.value);
+    // Create a bulleted error message list with line breaks
+    const errorMessage = `Validation Failed, please correct the following issues:
+                  ${errors.map(x => `· ${x}`).join('\r\n')}`;
     return {
       isValid: false,
       errorMessage
@@ -185,22 +188,30 @@ export default class TextAreaPlus extends LightningElement {
   @api validate() {
     // Move current textValue to value prop for saving on the session
     this.value = this.textValue;
+    const errors = [];
 
     // Case 1 - required has been checked, but there's not text
     if (this.required === true && this.len <= 0) {
-      return this.getFailObject('Cannot Advance - Field is Required.');
+      errors.push('Field is Required');
+      // return this.getFailObject('Field is Required.');
     }
 
     // Case 1 - required has been checked, but there's not text
     if (this.minlen > 0 && this.len < this.minlen) {
-      return this.getFailObject(`Cannot Advance - Minimum length of ${this.minlen} characters is required.`);
+      errors.push(`Minimum length of ${this.minlen} characters is required.`);
+      // return this.getFailObject(`Minimum length of ${this.minlen} characters is required.`);
     }
 
     // Case 2, text length is negative - this can happen from copy and paste
     if (this.showCharCounter && this.len < 0) {
-      return this.getFailObject('Cannot Advance - Character Limit Exceeded.');
+      errors.push('Character Limit Exceeded.');
+      // return this.getFailObject('Character Limit Exceeded.');
     }
 
+    if (errors.length > 0) {
+      // these errors take precedence over warn only
+      return this.getFailObject(errors);
+    }
     // If advanced tools haven't been enabled - we're done here
     // If warn only has been selected,
     if (!this.advancedTools || this.warnOnly) {
@@ -209,10 +220,13 @@ export default class TextAreaPlus extends LightningElement {
 
     // Case 3: Advanced tools only, invalid words have been used
     if (!this.isValidCheck) {
-      const msg = `Cannot Advance - Invalid Symbols/Words Remain in Rich Text: ${this.runningBlockedInput.join(', ')}`
-      return this.getFailObject(msg);
+      errors.push(`Invalid Symbols/Words: ${this.runningBlockedInput.join(', ')}`);
+      //return this.getFailObject(msg);
     }
 
+    if (errors.length > 0) {
+      return this.getFailObject(errors);
+    }
     // If we're here, it's valid
     return { isValid: true };
   }
@@ -314,6 +328,7 @@ export default class TextAreaPlus extends LightningElement {
     // minimum length takes precedence over disallowed words
     if (this.minlen > 0 && this.len < this.minlen) {
       this.isValidCheck = false;
+      // Will display on Rich Text.  TextArea is covered by min-length property
       this.errorMessage = `Minimum length of ${this.minlen} characters required`
       return;
     }
@@ -343,6 +358,7 @@ export default class TextAreaPlus extends LightningElement {
   }
 
   hasBlockedItems(text) {
+    const valid = true;
     text = this.stripHtml(text);
     // Create a list of disallowed words/symbols that actually contain elements.
     // Anything empty will be removed
@@ -355,8 +371,11 @@ export default class TextAreaPlus extends LightningElement {
       if (matches?.length > 0) {
         this.addBlockedItems(matches);
         this.isValidCheck = false;
+        valid = false;
       }
     }
+
+    return valid;
   }
 
   // Create a unique list of items, add any that aren't already in the blocked list
@@ -410,24 +429,17 @@ export default class TextAreaPlus extends LightningElement {
   // pseudo animated flash highlight of replacement text
   // Use array of animation timing to flash, then remove highlight
   animateHighlight() {
-    // This will disable BOTH search/replace and
-    this.animating = true;
     // Mark last item as final to denote when to re-enable the search and replace buttons
     // If the button isn't disabled during animation, highlights can get stuck
-    hlTimers[hlTimers.length-1].finalItem = true;
-    for (const timer of hlTimers) {
-      this.setHighlightTimer(timer);
-    }
+    hlTimers.forEach((timer, ix) => this.setHighlightTimer(timer, ix < hlTimers.length - 1));
   }
 
   // Sets a future highlight change
-  setHighlightTimer({style, ms, finalItem}) {
+  setHighlightTimer({style, ms}, animating) {
     setTimeout(() => {
+      // set animating to true while animating to disable both search and apply suggested buttons
+      this.animating = animating;
       this.textValue = this.hlText[style];
-      if (finalItem) {
-        // re-enable any buttons related to animating
-        this.animating = false;
-      }
     }, ms);
   }
 

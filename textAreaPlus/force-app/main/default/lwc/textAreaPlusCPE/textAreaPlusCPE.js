@@ -30,7 +30,7 @@ export default class textAreaPlusCPE extends LightningElement {
     textBannerInfo = [
         {label: 'Component Label', helpText: 'Header Label'},
         {label: 'Placeholder Text', helpText: 'Initial Placeholder Text'},
-        {label: 'Text Value', helpText: 'Initial Text Value'}            
+        {label: 'Text Value', helpText: 'Initial Text Value'}
     ];
     advToolsInfo = [
         {label: 'Blocked Words', helpText: 'List of comma delimited words to block'},
@@ -57,8 +57,8 @@ export default class textAreaPlusCPE extends LightningElement {
         cb_advancedTools: {value: null, valueDataType: null, isCollection: false, label:''},
         disallowedWordsList: { value: null, valueDataType: null, isCollection: false, label: 'Blocked Words', helpText: 'Comma-separated list of words to block.  Example: bad,worse,worst' },
         disallowedSymbolsList: { value: null, valueDataType: null, isCollection: false, label: 'Blocked Symbols', helpText: 'Comma-separated list of symbols to block.  Example: /,@,*' },
-        autoReplaceMap: { value: null, valueDataType: null, isCollection: false, label: 'Autoreplace Map', helpText: 'JSON for key:value pairs you want to replace.  Key = value to replace, Value = value to replace with.  Example: {"Test":"Great Test"}' },
-        warnOnly: { value: null, valueDataType: null, isCollection: false, label: 'Warning Only', helpText:'Set to True if you want disallowed Symbols or Words to only alert and not block next/finish.  Default is false.' },
+        autoReplaceMap: { value: null, valueDataType: null, isCollection: false, label: 'Autoreplace Map', helpText: 'JSON for key:value pairs you want to replace.  Key = value to replace, Value = value to replace with.  Example: {"This":"That"}' },
+        warnOnly: { value: null, valueDataType: null, isCollection: false, label: 'Warning Only', helpText:'Allows user to continue with Next/Finish, even if disallowed Symbols or Words are used.' },
         cb_warnOnly: {value: null, valueDataType: null, isCollection: false, label:''},
         required: { value: null, valueDataType: null, isCollection: false, label: 'Required', helpText: 'If true, a value in the text input is required' },
         cb_required: {value: null, valueDataType: null, isCollection: false, label:''},
@@ -67,7 +67,7 @@ export default class textAreaPlusCPE extends LightningElement {
     get hasValidMaxLength() {
         return this.inputValues.maxlen.value && Number(this.inputValues.maxlen.value) > 0;
     }
-    
+
     @api get builderContext() {
         return this._builderContext;
     }
@@ -122,7 +122,7 @@ export default class textAreaPlusCPE extends LightningElement {
                 errorString: 'Minimum length must be less than maximum length',
             });
         }
-        
+
         return validity;
     }
 
@@ -224,13 +224,9 @@ export default class textAreaPlusCPE extends LightningElement {
 
     get showAdvancedTools () {
         return this.eq('cb_advancedTools','CB_TRUE');
-    } 
-    
+    }
+
     get showCounterSettings() {
         return this.eq('cb_showCharCounter','CB_TRUE');
     }
 }
-
-    
-
-   
