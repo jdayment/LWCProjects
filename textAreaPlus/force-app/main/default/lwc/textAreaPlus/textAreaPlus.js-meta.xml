@@ -3,7 +3,7 @@
     <apiVersion>54.0</apiVersion>
     <isExposed>true</isExposed>
     <masterLabel>Textarea Plus!</masterLabel>
-    <description>Text/RichText with a counter</description>
+    <description>Plain Text with a counter or Rich Text with a counter and search features</description>
     <targets>
         <target>lightning__FlowScreen</target>
     </targets>
