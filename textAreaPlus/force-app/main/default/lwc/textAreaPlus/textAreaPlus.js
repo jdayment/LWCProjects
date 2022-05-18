@@ -1,6 +1,15 @@
 import { LightningElement, api, track } from "lwc";
 import { FlowAttributeChangeEvent } from "lightning/flowSupport";
 
+// List of special characters to RTF characters
+// Required for escaping search text
+// If you find a new one, add it here
+const rtfEscapeChars = [
+  {char: '&', text: '&amp;'}, // DO THIS FIRST! Trust me
+  {char: '<', text: '&lt;'},
+  {char: '>', text: '&gt;'},
+];
+
 // Used for search and replace temp highlight
 // mapping of highlight style to left tag (lt) and right tag (rt)
 const hlStyles = {
@@ -17,11 +26,21 @@ const hlTimers = [
   {style: 'none', ms: 600} // reset to text without highlight html
 ];
 
+// All possible options as of SP22
+// Valid rich text formats
+const validFormats = ['font','size','bold','italic','underline','strike','list','indent','align',
+'link','image','clean','table','header','color','background',
+'code','code-block','script','blockquote','direction'];
+
 // Convert CB values to a boolean
 function cbToBool(value) {
   return value === "CB_TRUE";
 }
 
+// Helper to add if value is true
+function addIf(condition, text) {
+  return condition ? text : '';
+}
 export default class TextAreaPlus extends LightningElement {
   // Flow inputs
   @api autoReplaceMap;
@@ -35,8 +54,9 @@ export default class TextAreaPlus extends LightningElement {
   // Component facing props
   @track runningBlockedInput = [];
   @track undoStack = [];
-  @track escapedVals = {searchTerm: '', replaceValue: ''};searchButton = false;
+  @track escapedVals = {searchTerm: '', replaceValue: ''};
 
+  searchButton = false;
   _charsLeftTemplate = '$L/$M Characters'; // Must match CPE.js default setting
   textValue;
   autoReplaceEnabled = false;
@@ -52,13 +72,7 @@ export default class TextAreaPlus extends LightningElement {
   applyTerm = "";
   regTerm = "";
   replaceMap = {};
-  instructions =
-    "1)  Find and Replace:  Use Magnifying Glass, Enter Terms and Use Check Mark.  " +
-    "2)  Auto Replace:  If your Admin has configured it, Use Merge Icon to replace suggested terms.";
-  // All possible options as of SP22
-  formats = ['font','size','bold','italic','underline','strike','list','indent','align',
-    'link','image','clean','table','header','color','background',
-    'code','code-block','script','blockquote','direction'];
+  formats = validFormats;
 
   // If either search or autoreplace is enabled, allow case insensitive
   get showCaseInsensitive() {
@@ -72,18 +86,24 @@ export default class TextAreaPlus extends LightningElement {
 
   // Show help text appropriately based on whether Suggested Terms is enabled
   get caseInsensitiveHelpText() {
-    let text = '';
-    if (this.showCaseInsensitive) {
-      text += `Ignore Case for Search and Replace`;
-    }
-    if (this.autoReplaceEnabled) {
-      text += ' and Suggested Terms';
-    }
-    return text;
+    // addIf helper: If the first parameter is true, the text will be returned, otherwise empty string
+    return addIf(this.showCaseInsensitive, 'Ignore Case for Search and Replace')
+      + addIf(this.autoReplaceEnabled, ' and Suggested Terms')
   }
 
   get ignoreCaseVariant() {
     return this.ignoreCase ? "brand" : "neutral";
+  }
+
+  get applyAltText() {
+    try {
+      const prettyMap = Object.keys(this.replaceMap)
+        .map(x => `${x} -> ${this.replaceMap[x]}`)
+        .join(',');
+      return `Apply Suggested Terms (${prettyMap})`;
+    } catch (e) {
+      return 'Apply Suggested Terms';
+    }
   }
 
   // based on whether ignore case is selected, use the modifier
@@ -193,63 +213,70 @@ export default class TextAreaPlus extends LightningElement {
     // Case 1 - required has been checked, but there's not text
     if (this.required === true && this.len <= 0) {
       errors.push('Field is Required');
-      // return this.getFailObject('Field is Required.');
     }
 
-    // Case 1 - required has been checked, but there's not text
+    // Case 2 - characters are below minimum length required
     if (this.minlen > 0 && this.len < this.minlen) {
       errors.push(`Minimum length of ${this.minlen} characters is required.`);
-      // return this.getFailObject(`Minimum length of ${this.minlen} characters is required.`);
     }
 
-    // Case 2, text length is negative - this can happen from copy and paste
-    if (this.showCharCounter && this.len < 0) {
+    // Case 3, char counter is enabled, but remaining characters is negative
+    // This can happen with rich text when too much text is pasted
+    if (this.showCharCounter && this.charsLeft < 0) {
       errors.push('Character Limit Exceeded.');
-      // return this.getFailObject('Character Limit Exceeded.');
     }
 
+    // these errors take precedence over warn only, return them now
     if (errors.length > 0) {
-      // these errors take precedence over warn only
       return this.getFailObject(errors);
     }
-    // If advanced tools haven't been enabled - we're done here
-    // If warn only has been selected,
+
+    // If advanced tools haven't been enabled
+    // Or advanced tools is enabled with warn only, we're done
     if (!this.advancedTools || this.warnOnly) {
       return { isValid: true };
     }
 
     // Case 3: Advanced tools only, invalid words have been used
-    if (!this.isValidCheck) {
+    if (this.runningBlockedInput.length > 0) {
       errors.push(`Invalid Symbols/Words: ${this.runningBlockedInput.join(', ')}`);
-      //return this.getFailObject(msg);
     }
 
     if (errors.length > 0) {
       return this.getFailObject(errors);
     }
+
     // If we're here, it's valid
     return { isValid: true };
   }
 
   // Helper for removing html tags for accurate rich text length count
   stripHtml(str) {
-    return this.plainText ? str : str?.replace( /(<([^>]+)>)/g, '');
+    if (this.plainText) {
+      return str;
+    } else {
+      // Switch all the HTML safe text back to characters for accurate length
+      str = str?.replace( /(<([^>]+)>)/g, '');
+      return this.unescapeRichText(str);
+      // Then remove all HTML tags
+
+    }
   }
 
   connectedCallback() {
     //use sessionStorage to fetch and restore latest value before validation failure.
-    if (sessionStorage) {
-      if (sessionStorage.getItem("tempValue")) {
+    if (sessionStorage?.getItem("tempValue")) {
         this.value = sessionStorage.getItem("tempValue");
         sessionStorage.removeItem("tempValue"); //clear value after selection
-      }
     }
 
     if (this.advancedTools) {
-      this.textValue = this.value || "";
+      // Use value from session, or blank
+      this.textValue = this.value || '';
       // Build regex for disallowed symbols and words (if listed)
-      this.setRegex('Symbols', s=>`\\${s}`);
-      this.setRegex('Words', w=>`\\b${w}\\b`);
+      // Pass in function to format the regex correctly
+      this.setRegex('Symbols', s => `\\${s}`);
+      this.setRegex('Words', w => `\\b${w}\\b`);
 
       if (this.autoReplaceMap != undefined) {
           this.replaceMap = JSON.parse(this.autoReplaceMap);
@@ -265,7 +292,7 @@ export default class TextAreaPlus extends LightningElement {
       const pipedList = list
         .replace(/\s/g, "")
         .split(",")
-        .map(fn)
+        .map(fn) // Used the passed in function to create the regex
         .join('|');
       this[`disallowed${type}Regex`] = new RegExp(pipedList, this.regexMod);
     }
@@ -275,6 +302,7 @@ export default class TextAreaPlus extends LightningElement {
   get len() {
     // for plain text, just return the length
     // for rich text, strip the HTML
+
     return this.stripHtml(this.textValue)?.length || 0;
   }
 
@@ -319,6 +347,7 @@ export default class TextAreaPlus extends LightningElement {
   //Handle updates to Rich Text field
   handleTextChange({target}) {
     this.updateText(target.value);
+    this.isValidCheck = true;
 
     // We're done if advanced tools aren't enabled
     if (!this.advancedTools) {
@@ -350,16 +379,20 @@ export default class TextAreaPlus extends LightningElement {
   }
 
   handleRichTextKeyDown(event) {
-    // Allow backspace (keyCode 8) and delete (keyCode 46)
-    if (this.showCounter && this.charsLeft <= 0
-      && event.keyCode !== 8 && event.keyCode !== 46) {
+    // Allow backspace (8), delete (46), home (36), end (35), arrows (37-40), control/cmd (17)
+    const keys = [8,46,17,18,35,36,37,38,39,40,46];
+    // Allow Control-a (65), Control-c (67), Control-x (88) so user can delete and stuff, but not type new characters or paste more junk
+    const ctlKeys = [65,67,88];
+    const validKey = ({ctrlKey, keyCode}) => keys.includes(keyCode) || ctrlKey && ctlKeys.includes(keyCode);
+    if (this.showCounter && this.charsLeft <= 0 && !validKey(event)) {
       event.preventDefault();
     }
   }
 
   hasBlockedItems(text) {
-    const valid = true;
+    let hasEm = false;
     text = this.stripHtml(text);
+
     // Create a list of disallowed words/symbols that actually contain elements.
     // Anything empty will be removed
     const naughtyLists = [this.disallowedWordsRegex, this.disallowedSymbolsRegex]
@@ -370,31 +403,19 @@ export default class TextAreaPlus extends LightningElement {
       const matches = text.match(rx);
       if (matches?.length > 0) {
         this.addBlockedItems(matches);
-        this.isValidCheck = false;
-        valid = false;
+        hasEm = true;
+        // do not try to be fancy and return or break here, or all items won't be added!!!
+        // this must run for BOTH regexes in the array
       }
     }
 
-    return valid;
+    return hasEm;
   }
 
   // Create a unique list of items, add any that aren't already in the blocked list
   addBlockedItems(items) {
     items = items.map(w => w.toLowerCase());
     this.runningBlockedInput = Array.from(new Set([...this.runningBlockedInput,...items]));
-  }
-
-  //Handle initiation of Search and Replace
-  handleOpenSearch(event) {
-    this.searchButton = !this.searchButton;
-  }
-
-  //Search and Replace Search for Value
-  handleSearchReplaceChange(event) {
-    //TODO: Fix infinite loop, block invalid chars @ keypress
-    const filteredValue = this.escapeRegExp(event.target.value);
-    const targetValue = event.target.dataset.id === 'search' ? 'searchTerm' : 'replaceValue';
-    this.escapedVals[targetValue] = filteredValue;
   }
 
   // Helper function to build text for search replace with
@@ -404,14 +425,43 @@ export default class TextAreaPlus extends LightningElement {
     this.hlText[prop] = text.replaceAll(term,`${hl.lt}${value}${hl.rt}`);
   }
 
+  // push text value on to the undo stack *only* if it is different than the last item on the stack
+  addUndo() {
+    if (this.undoStack.length == 0 || this.undoStack[this.undoStack.length -1] !== this.textValue) {
+      this.undoStack.push(this.textValue);
+    }
+  }
+
+  //Handle initiation of Search and Replace
+  handleOpenSearch(event) {
+    this.searchButton = !this.searchButton;
+  }
+
+  // Kick off search/replace if enter is pressed
+  handleSearchKeyDown({keyCode}) {
+    if (keyCode === 13) {
+      this.handleSearchReplace();
+    }
+  }
+
+  //Search and Replace Search for Value
+  handleSearchReplaceChange({target}) {
+    //TODO: Fix infinite loop, block invalid chars @ keypress
+    const filteredValue = this.escapeRegExp(target.value);
+    const targetValue = target.dataset.id === 'search' ? 'searchTerm' : 'replaceValue';
+    this.escapedVals[targetValue] = filteredValue;
+  }
+
   //Execute Search and REplace
-  searchReplace() {
+  handleSearchReplace() {
     if (this.escapedVals.searchTerm === '') {
-      // An empty string will add the replacement value between every character!  This could cause exponential growth of the text with each click, so let's just not do that.
+      // An empty string will add the replacement value between every character!
+      // This could cause exponential growth of the text with each click, so let's just not do that.
       return;
     }
-    // prep for undo
-    this.undoStack.push(this.textValue);
+
+    this.addUndo();
+
     const term = new RegExp(this.escapedVals.searchTerm, this.regexMod);
     const value = this.escapedVals.replaceValue;
 
@@ -429,23 +479,22 @@ export default class TextAreaPlus extends LightningElement {
   // pseudo animated flash highlight of replacement text
   // Use array of animation timing to flash, then remove highlight
   animateHighlight() {
-    // Mark last item as final to denote when to re-enable the search and replace buttons
-    // If the button isn't disabled during animation, highlights can get stuck
+    // By passing the second parameter, animate, the search and autoreplace buttons will be disabled during
+    // animation.  The last item will return false, which will re-enable the buttons.
     hlTimers.forEach((timer, ix) => this.setHighlightTimer(timer, ix < hlTimers.length - 1));
   }
 
   // Sets a future highlight change
-  setHighlightTimer({style, ms}, animating) {
+  setHighlightTimer({style, ms}, animate) {
     setTimeout(() => {
-      // set animating to true while animating to disable both search and apply suggested buttons
-      this.animating = animating;
+      this.animating = animate;
       this.textValue = this.hlText[style];
     }, ms);
   }
 
   //Execute Auto-Replacement based on map.
   applySuggested(event) {
-    this.undoStack.push(this.textValue);
+    this.addUndo();
     // Reset all text values in the highlight map
     // so highlights will work correctly
     this.hlText = {};
@@ -468,9 +517,19 @@ export default class TextAreaPlus extends LightningElement {
 
   //Clean input for RegExp and matching rich text
   escapeRegExp(str) {
-    str = str.replaceAll('<','&lt;');
-    str = str.replaceAll('>','&gt;');
-    str = str.replaceAll('>','&amp;');
+    rtfEscapeChars.forEach(({char,text}) => {
+      str = str.replaceAll(char,text);
+    });
     return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  // The opposite of escaping RTF for accurate char count
+  unescapeRichText(str) {
+    // go in reverse order, starting with &amp;
+    const rtfUnescape = [...rtfEscapeChars].reverse();
+    rtfUnescape.forEach(({char,text}) => {
+      str = str.replaceAll(text,char);
+    });
+    return str;
   }
 }

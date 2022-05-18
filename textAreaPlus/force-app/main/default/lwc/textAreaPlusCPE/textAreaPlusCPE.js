@@ -20,11 +20,13 @@ const VALIDATEABLE_INPUTS = ['c-fsc_flow-combobox'];
 export default class textAreaPlusCPE extends LightningElement {
     @api automaticOutputVariables;
     minlenErr = false;
+    jsonErr = false;
     typeValue;
     _builderContext = {};
     _values = [];
     _flowVariables = [];
     _typeMappings = [];
+
     rendered;
     // Help for Rich Text Options
     textBannerInfo = [
@@ -113,6 +115,23 @@ export default class textAreaPlusCPE extends LightningElement {
                 }
             }
         }
+
+        // Do not allow save with invalid JSON
+        try {
+            if (this.inputValues.autoReplaceMap?.value?.trim() !== '') {
+                JSON.parse(this.inputValues.autoReplaceMap.value);
+            } else {
+                this.jsonErr = false;
+
+            }
+        } catch (e) {
+            this.jsonErr = true;
+            validity.push({
+                key: 'invalidJSON',
+                errorString: 'Auto Replace Map contains invalid JSON.  Use the format {"key1":"value1","key2":"value2"}',
+            });
+        }
+
 
         // Enforce min length <= max length
         this.minlenErr = Number(this.inputValues.maxlen.value) > 0 && Number(this.inputValues.minlen.value) >= Number(this.inputValues.maxlen.value);
@@ -214,15 +233,16 @@ export default class textAreaPlusCPE extends LightningElement {
         this.dispatchEvent(valueChangedEvent);
     }
 
+    // Helper function to check input value properties for a match
     eq(prop, value) {
         return this.inputValues[prop]?.value === value;
     }
 
-    get isPlainText () {
+    get isPlainText() {
         return this.eq('textMode','plain');
     }
 
-    get showAdvancedTools () {
+    get showAdvancedTools() {
         return this.eq('cb_advancedTools','CB_TRUE');
     }
 
