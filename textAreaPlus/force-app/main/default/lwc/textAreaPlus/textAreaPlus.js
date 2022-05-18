@@ -258,8 +258,6 @@ export default class TextAreaPlus extends LightningElement {
       // Switch all the HTML safe text back to characters for accurate length
       str = str?.replace( /(<([^>]+)>)/g, '');
       return this.unescapeRichText(str);
-      // Then remove all HTML tags
-
     }
   }
 
@@ -274,9 +272,9 @@ export default class TextAreaPlus extends LightningElement {
       // Use value from session, or blank
       this.textValue = this.value || '';
       // Build regex for disallowed symbols and words (if listed)
-      // Pass in function to format the regex correctly
-      this.setRegex('Symbols', s => `\\${s}`);
-      this.setRegex('Words', w => `\\b${w}\\b`);
+      // This will pass in a function to format the regex correctly by type
+      this.setRegex('Symbols', x => `\\${x}`);
+      this.setRegex('Words', x => `\\b${x}\\b`);
 
       if (this.autoReplaceMap != undefined) {
           this.replaceMap = JSON.parse(this.autoReplaceMap);
@@ -302,7 +300,6 @@ export default class TextAreaPlus extends LightningElement {
   get len() {
     // for plain text, just return the length
     // for rich text, strip the HTML
-
     return this.stripHtml(this.textValue)?.length || 0;
   }
 
