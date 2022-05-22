@@ -1,325 +1,528 @@
-import { LightningElement, api, track } from 'lwc';
-import { FlowAttributeChangeEvent } from 'lightning/flowSupport';
+import { LightningElement, api, track } from "lwc";
+import { FlowAttributeChangeEvent } from "lightning/flowSupport";
+
+// List of special characters to RTF characters
+// Required for escaping search text
+// If you find a new one, add it here
+const rtfEscapeChars = [
+  {char: '&', text: '&amp;'}, // DO THIS FIRST! Trust me
+  {char: '<', text: '&lt;'},
+  {char: '>', text: '&gt;'},
+];
+
+// Used for search and replace temp highlight
+// mapping of highlight style to left tag (lt) and right tag (rt)
+const hlStyles = {
+  bright: {lt: `<span style="background-color:#ffd500">`, rt: '</span>'},
+  mid: {lt: `<span style="background-color:#fff2b2">`, rt: '</span>'},
+  none: {lt: '', rt: ''}
+};
+
+// timing for animation of highlights
+const hlTimers = [
+  {style: 'mid', ms: 0},
+  {style: 'bright', ms: 75}, // main highlight - bright
+  {style: 'mid', ms: 525}, // start fading out for 75ms
+  {style: 'none', ms: 600} // reset to text without highlight html
+];
+
+// All possible options as of SP22
+// Valid rich text formats
+const validFormats = ['font','size','bold','italic','underline','strike','list','indent','align',
+'link','image','clean','table','header','color','background',
+'code','code-block','script','blockquote','direction'];
+
+// Convert CB values to a boolean
+function cbToBool(value) {
+  return value === "CB_TRUE";
+}
 
 export default class TextAreaPlus extends LightningElement {
-    // Component facing props
-    @track textValue;
-    @track maxLength;
-    @track disallowedWordsArray = [];
-    @track disallowedWords;
-    @track disallowedSymbolsArray = [];
-    @track disallowedSymbols;
-    @track searchTerm = '';
-    @track replaceValue = '';
-    @track interimValue = '';
-    @track symbolsNotAllowed;
-    @track wordsNotAllowed;
-    @track oldRichText;
-    @track dirty = false;
-    @track autoReplaceEnabled = false;
-    @track runningBlockedInput = [];
-    @track searchButton = false;
-    @track isValidCheck = true;
-    @track errorMessage;
-    @track characterCount = 0;
-    @track characterCap = false;
-    replaceMap = {};
-    regTerm = '';
-    applyTerm = '';
-    instructions = '1)  Find and Replace:  Use Magnifying Glass, Enter Terms and Use Check Mark.  '+
-                    '2)  Auto Replace:  If your Admin has configured it, Use Merge Icon to replace suggested terms.';
+  // Flow inputs
+  @api autoReplaceMap;
+  @api counterTextTemplate;
+  @api disallowedSymbolsList;
+  @api disallowedWordsList;
+  @api label;
+  @api placeHolder;
+  @api textMode;
 
-    // Flow inputs  
-    @api label;
-    @api placeHolder;
-    @api textMode;
-    @api disallowedWordsList;
-    @api disallowedSymbolsList;
-    @api autoReplaceMap;
+  // Component facing props
+  @track runningBlockedInput = [];
+  @track undoStack = [];
+  @track escapedVals = {searchTerm: '', replaceValue: ''};
 
-    @api 
-    get disableAdvancedTools() {
-    return (this.cb_disableAdvancedTools == 'CB_TRUE') ? true : false;
-    }
-    @api cb_disableAdvancedTools;
+  _charsLeftTemplate = '$L/$M Characters'; // Must match CPE.js default setting
+  searchButton = false;
+  textValue;
+  autoReplaceEnabled = false;
+  disallowedSymbolsRegex;
+  disallowedWordsRegex;
+  errorMessage;
+  isValidCheck = true;
+  maxLength;
+  minLength;
+  ignoreCase = true;
+  animating = false;
+  hlText;
+  replaceMap = {};
+  formats = validFormats;
 
-    @api 
-    get warnOnly() {
-    return (this.cb_warnOnly == 'CB_TRUE') ? true : false;
-    }
-    @api cb_warnOnly;
+  // If either search or autoreplace is enabled, allow case insensitive
+  get showCaseInsensitive() {
+    return this.searchButton || this.autoReplaceEnabled;
+  }
 
-    @api 
-    get required() {
-    return (this.cb_required == 'CB_TRUE') ? true : false;
-    }
-    @api cb_required;
+  // This is not a Daft Punk song
+  get dirty() {
+    return this.undoStack.length > 0;
+  }
 
-    
-    @api set maxlen(val) {
-        this.maxLength = val;
-    }
-    get maxlen() {
-        return this.maxLength;
-    }
+  // Show help text appropriately based on whether Suggested Terms is enabled
+  get caseInsensitiveHelpText() {
+    return `${this.showCaseInsensitive ? 'Ignore Case for Search and Replace' : ''}
+            ${this.autoReplaceEnabled ? ' and Suggested Terms' : ''}`;
+  }
 
-    @api
-    get maxlenString() {
-        return this.maxlen;
-    }
-    set maxlenString(value) {
-        if (!Number.isNaN(value))
-            this.maxlen = value;
-    }
+  get ignoreCaseVariant() {
+    return this.ignoreCase ? "brand" : "neutral";
+  }
 
-    @api set value(val) {
-        this.textValue = val;
+  get applyAltText() {
+    try {
+      const prettyMap = Object.keys(this.replaceMap)
+        .map(x => `${x} -> ${this.replaceMap[x]}`)
+        .join(',');
+      return `Apply Suggested Terms (${prettyMap})`;
+    } catch (e) {
+      return 'Apply Suggested Terms';
     }
-    get value() {
-        return this.textValue;
+  }
+
+  // based on whether ignore case is selected, use the modifier
+  get regexMod() {
+    return this.ignoreCase ? "gi" : "g";
+  }
+
+  get counterText() {
+    // base case - template is blank
+    if (!this._charsLeftTemplate) {
+      return '';
     }
 
-    @api validate() {
-        if (Number(this.maxLength) >= 0) {
-            return { isValid: true};
-        } 
+    return this._charsLeftTemplate
+      .replaceAll('$R', this.charsLeft)
+      .replaceAll('$M', this.maxLength)
+      .replaceAll('$L', this.len)
+  }
 
-        if(!this.disableAdvancedTools){
-            this.value = this.textValue;
-        }
+  get plainText() {
+    return this.textMode === "plain";
+  }
 
-        let errorMessage = "You must make a selection in: " + this.label + " to continue";
-        if (this.required === true && !this.value) {
-            return {
-                isValid: false,
-                errorMessage: errorMessage
-            };
-        }
+  get showCounter() {
+    return this.maxLength && this.maxLength > 0;
+  }
 
-        if(this.disableAdvancedTools || this.warnOnly){
-            return {isValid:true};
-        }else if(this.characterCap && (this.characterCount > this.maxLength)){
-            //failure scenario so set tempValue in sessionStorage
-            sessionStorage.setItem('tempValue',this.value);
-            return {
-                isValid:false,
-                errorMessage: 'Cannot Advance - Character Limit Exceeded: '+this.characterCount + ' > ' + this.maxLength
-            };
-        }else if(!this.isValidCheck){
-            //failure scenario so set tempValue in sessionStorage
-            sessionStorage.setItem('tempValue',this.value);
-            return {
-                isValid:false,
-                errorMessage: 'Cannot Advance - Invalid Symbols/Words Remain in Rich Text: '+this.runningBlockedInput.toString()
-            };
-        }
-        else{
-            return {isValid:false};
-        }
+  @api
+  get advancedTools() {
+    // advanced tools can only be explained for rich text
+    return !this.plainText && cbToBool(this.cb_advancedTools);
+  }
+  @api cb_advancedTools;
+
+  @api
+  get warnOnly() {
+    return cbToBool(this.cb_warnOnly);
+  }
+  @api cb_warnOnly;
+
+  @api
+  get required() {
+    return cbToBool(this.cb_required);
+  }
+  @api cb_required;
+
+  @api
+  get showCharCounter() {
+    return cbToBool(this.cb_showCharCounter);
+  }
+  @api cb_showCharCounter;
+
+  @api
+  get maxlen() {
+    return this.maxLength;
+  }
+  set maxlen(value) {
+    if (!Number.isNaN(value)) {
+      this.maxLength = Number(value);
+    };
+  }
+
+  @api
+  get minlen() {
+    return this.minLength;
+  }
+  set minlen(value) {
+    if (!Number.isNaN(value)) {
+      this.minLength = Number(value);
+    };
+  }
+
+  @api
+  get value() {
+    return this.textValue;
+  }
+  set value(val) {
+    this.textValue = val;
+  }
+
+  @api
+  get charsLeftTemplate() {
+    return this._charsLeftTemplate;
+  }
+  set charsLeftTemplate(value) {
+    if (value && value.trim().length > 0) {
+      this._charsLeftTemplate = value;
+    }
+  }
+
+  getFailObject(errors) {
+    //failure scenario so set tempValue in sessionStorage
+    sessionStorage.setItem("tempValue", this.value);
+    console.log('st',JSON.stringify(this))
+    // Create a bulleted error message list with line breaks
+    const errorMessage = `Validation Failed, please correct the following issues:
+                  ${errors.map(x => `· ${x}`).join('\r\n')}`;
+    return {
+      isValid: false,
+      errorMessage
+    };
+  }
+
+  @api validate() {
+    // Move current textValue to value prop for saving on the session
+    this.value = this.textValue;
+    const errors = [];
+
+    // Case 1 - required has been checked, but there's not text
+    if (this.required === true && this.len <= 0) {
+      errors.push('Field is Required');
     }
 
-    formats = ['font', 'size', 'bold', 'italic', 'underline',
-        'strike', 'list', 'indent', 'align', 'link',
-        'image', 'clean', 'table', 'header', 'color','background','code','code-block','script','blockquote','direction'];
-
-        connectedCallback() {
-		
-            //use sessionStorage to fetch and restore latest value before validation failure.
-            if(sessionStorage){
-                if(sessionStorage.getItem('tempValue')){
-                    this.value = sessionStorage.getItem('tempValue');
-                    sessionStorage.removeItem('tempValue'); //clear value after selection
-                }
-            }
-    
-            if(!this.disableAdvancedTools){
-                console.log('disableAdvancedTools is false, in connected callback');
-                (this.value != undefined) ? this.textValue = this.value : this.textValue = '';
-                this.characterCount = this.textValue.length;
-                if(this.disallowedSymbolsList != undefined){
-                    this.disallowedSymbolsArray = this.disallowedSymbolsList.replace(/\s/g,'').split(',');
-                    for(let i=0; i<this.disallowedSymbolsArray.length; i++){
-                        if(i == 0){
-                            if(this.disallowedSymbolsArray.length != 1){
-                                this.disallowedSymbols = '['+ this.disallowedSymbolsArray[i] + '|';
-                            }else{
-                                this.disallowedSymbols = '['+ this.disallowedSymbolsArray[i] + ']';
-                            }
-                        } else if (i == (this.disallowedSymbolsArray.length - 1)){
-                            this.disallowedSymbols = this.disallowedSymbols.concat(this.disallowedSymbolsArray[i] + ']');
-                        } else {
-                            this.disallowedSymbols = this.disallowedSymbols.concat(this.disallowedSymbolsArray[i] + '|');
-                        }
-                    }
-                }
-        
-                if(this.disallowedWordsList != undefined){
-                    this.disallowedWordsArray = this.disallowedWordsList.replace(/\s/g,'').split(',');
-                    for(let i=0; i<this.disallowedWordsArray.length; i++){
-                        if(i == 0){
-                            if(this.disallowedWordsArray.length != 1){
-                                this.disallowedWords = '('+this.disallowedWordsArray[i] + '|';
-                            }else{
-                                this.disallowedWords = '('+this.disallowedWordsArray[i] + ')\b';
-                            }
-                        } else if (i == (this.disallowedWordsArray.length - 1)){
-                            this.disallowedWords = this.disallowedWords.concat(this.disallowedWordsArray[i] + ')\\b');
-                        } else {
-                            this.disallowedWords = this.disallowedWords.concat(this.disallowedWordsArray[i] + '|');
-                        }
-                    }
-                }
-                if(this.disallowedSymbols != undefined) this.symbolsNotAllowed = new RegExp(this.disallowedSymbols,'g');
-                if(this.disallowedWords != undefined) this.wordsNotAllowed = new RegExp(this.disallowedWords,'g');
-                if(this.autoReplaceMap != undefined){
-                    this.replaceMap = JSON.parse(this.autoReplaceMap);
-                    this.autoReplaceEnabled = true;
-                } 
-                if(this.maxLength > 0){
-                    this.characterCap = true;
-                }
-            }
-        }
-
-    // Dynamic properties
-    get charsLeft() {
-        return this.maxLength - (this.textValue?.length >= 0 ? this.textValue.length : 0);
+    // Case 2 - characters are below minimum length required
+    if (this.minlen > 0 && this.len < this.minlen) {
+      errors.push(`Minimum length of ${this.minlen} characters is required.`);
     }
 
-    get labelCss() {
-        return `slds-var-p-top_xxx-small slds-var-p-left_x-small ${this.charsLeft > 0 ? 'default' : 'warning'}`;
-    }
-    
-    // Event handler
-    handleChange({detail}) {
-        this.textValue = detail.value;
-        // required for Flow
-        const attributeChangeEvent = new FlowAttributeChangeEvent('value', this.textValue);
-        this.dispatchEvent(attributeChangeEvent);
+    // Case 3, char counter is enabled, but remaining characters is negative
+    // This can happen with rich text when too much text is pasted
+    if (this.showCharCounter && this.charsLeft < 0) {
+      errors.push('Character Limit Exceeded.');
     }
 
-    get plainText () {
-        return this.textMode && this.textMode === 'plain'
+    // these errors take precedence over warn only, return them now
+    if (errors.length > 0) {
+      return this.getFailObject(errors);
     }
 
-    get showCounter () {
-        return this.maxlen && this.maxlen > 0
-    }
-	
-	//Handle updates to Rich Text field with no enhanced features
-    handleValueChange(event) {
-        this.value = event.target.value;
+    // If advanced tools haven't been enabled
+    // Or advanced tools is enabled with warn only, we're done
+    if (!this.advancedTools || this.warnOnly) {
+      return { isValid: true };
     }
 
-    //Handle updates to Rich Text field with enhanced features
-    handleTextChange(event) {
-        this.runningBlockedInput = [];
-        this.isValidCheck = true;
-        if (this.symbolsNotAllowed != undefined || this.wordsNotAllowed != undefined) {
-            this.interimValue = (event.target.value).toLowerCase();
-            this.interimValue = this.interimValue.replace(/(<([^>]+)>)/ig, "");
-            
-            //Symbol check section
-            if (this.symbolsNotAllowed != undefined) {
-                let matchesSymbol = this.interimValue.match(this.symbolsNotAllowed);
-                if (matchesSymbol != null && matchesSymbol.length > 0) {
-                    for(let i = 0; i < matchesSymbol.length; i++){
-                        this.runningBlockedInput.push(matchesSymbol[i]);
-                    }
-                    this.isValidCheck = false;
-                } else {
-                    this.textValue = event.target.value;
-                }
-            }
-
-            if (this.wordsNotAllowed != undefined) {
-                let matchesWords = this.interimValue.match(this.wordsNotAllowed);
-                if (matchesWords != null && matchesWords.length > 0) {
-                    for(let i = 0; i < matchesWords.length; i++){
-                        this.runningBlockedInput.push(matchesWords[i]);
-                    }
-                    this.isValidCheck = false;
-                } else {
-                    this.textValue = event.target.value;
-                }
-            }
-        } else {
-            this.isValidCheck = true;
-            this.textValue = event.target.value;
-        }
-        this.characterCount = this.textValue.length;
-        if(this.characterCap && this.characterCount > this.maxLength){
-            this.isValidCheck = false;
-        }
-        //Display different message if warn only - validation also won't be enforced on Next.
-        if(this.characterCap && this.characterCount > this.maxLength){
-            this.errorMessage = 'Error - Character Limit Exceeded';
-        }else if(!this.warnOnly){
-            this.errorMessage = 'Error - Invalid Symbols/Words found: '+this.runningBlockedInput.toString();
-        }else{
-            this.errorMessage = 'Warning - Invalid Symbols/Words found: '+this.runningBlockedInput.toString();
-        }
-        
+    // Case 3: Advanced tools only, invalid words have been used
+    if (this.runningBlockedInput.length > 0) {
+      errors.push(`Invalid Symbols/Words: ${this.runningBlockedInput.join(', ')}`);
     }
 
-    //Set css on Character count if passing character limit
-    get charClass(){
-        return (this.maxLength < this.characterCount ? 'warning' : '');
+    if (errors.length > 0) {
+      return this.getFailObject(errors);
     }
 
-    //Handle initiation of Search and Replace
-    handleOpenSearch(event) {
-        this.searchButton = !this.searchButton;
+    // If we're here, it's valid
+    return { isValid: true };
+  }
+
+  // Helper for removing html tags for accurate rich text length count
+  stripHtml(str) {
+    if (this.plainText) {
+      return str;
+    } else {
+      // Switch all the HTML safe text back to characters for accurate length
+      str = str?.replace( /(<([^>]+)>)/g, '');
+      return this.unescapeRichText(str);
+    }
+  }
+
+  connectedCallback() {
+    console.log('tv', this.key, this.id);
+    //use sessionStorage to fetch and restore latest value before validation failure.
+    if (sessionStorage?.getItem("tempValue")) {
+        this.value = sessionStorage.getItem("tempValue");
+        sessionStorage.removeItem("tempValue"); //clear value after selection
     }
 
-    //Search and Replace Search for Value
-    handleSearchChange(event) {
-        this.searchTerm = (event.target.value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (this.advancedTools) {
+      // Use value from session, or blank
+      this.textValue = this.value || '';
+      // Build regex for disallowed symbols and words (if listed)
+      // This will pass in a function to format the regex correctly by type
+      this.setRegex('Symbols', x => `\\${x}`);
+      this.setRegex('Words', x => `\\b${x}\\b`);
+
+      if (this.autoReplaceMap != undefined) {
+          this.replaceMap = JSON.parse(this.autoReplaceMap);
+          this.autoReplaceEnabled = true;
+      }
+    }
+  }
+
+  // Helper to convert comma delimited list of words or symbols to pipe delimited regular expression
+  setRegex(type, fn) {
+    const list = this[`disallowed${type}List`];
+    if (list?.length > 0) {
+      const pipedList = list
+        .replace(/\s/g, "")
+        .split(",")
+        .map(fn) // Used the passed in function to create the regex
+        .join('|');
+      this[`disallowed${type}Regex`] = new RegExp(pipedList, this.regexMod);
+    }
+  }
+
+  // Dynamically calculate the length of text
+  get len() {
+    // for plain text, just return the length
+    // for rich text, strip the HTML
+    return this.stripHtml(this.textValue)?.length || 0;
+  }
+
+  // Dynamically calculate remaining characters
+  get charsLeft() {
+    const tlen = this.len;
+    return (
+      this.maxLength - (tlen >= 0 ? tlen : 0)
+    );
+  }
+
+  // Set the class based on rich text vs plain text, and number of chars left
+  get charsLeftClass() {
+    const padding = this.plainText ?
+      'slds-var-p-top_xxx-small slds-var-p-left_x-small' :
+      'slds-var-p-left_x-small slds-var-p-right_xxx-small slds-var-p-top_x-small slds-var-p-bottom_xxx-small';
+    return `${padding} ${
+      this.charsLeft > 0 ? "default" : "warning"
+    }`;
+  }
+
+  handleIgnoreCaseToggle() {
+    this.ignoreCase = !this.ignoreCase;
+  }
+
+  // Common text value updater for Plan or Rich text
+  updateText(value) {
+    this.textValue = value;
+    // required for Flow
+    const attributeChangeEvent = new FlowAttributeChangeEvent(
+      "value",
+      this.textValue
+    );
+    this.dispatchEvent(attributeChangeEvent);
+  }
+
+  // Event handler for plain text change
+  handleChange({ detail }) {
+    this.updateText(detail.value);
+  }
+
+  //Handle updates to Rich Text field
+  handleTextChange({target}) {
+    this.updateText(target.value);
+    this.isValidCheck = true;
+
+    // We're done if advanced tools aren't enabled
+    if (!this.advancedTools) {
+      return;
     }
 
-    //Search and Replace Replace with Value
-    handleReplaceChange(event) {
-        this.replaceValue = (event.target.value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // minimum length takes precedence over disallowed words
+    if (this.minlen > 0 && this.len < this.minlen) {
+      this.isValidCheck = false;
+      // Will display on Rich Text.  TextArea is covered by min-length property
+      this.errorMessage = `Minimum length of ${this.minlen} characters required`
+      return;
     }
 
-    //Execute Search and REplace
-    searchReplace() {
-        this.oldRichText = this.textValue;
-        this.dirty = true;
-        let draftValue = this.textValue;
-        this.searchTerm = this.escapeRegExp(this.searchTerm);
-        this.replaceValue = this.escapeRegExp(this.replaceValue);
-        draftValue = this.replaceAll(draftValue, this.searchTerm, this.replaceValue);
-        this.textValue = draftValue;
+    this.runningBlockedInput = [];
+    // base case, there are no disallowed symbols or words
+    if (!this.disallowedSymbolsRegex && !this.disallowedWordsRegex) {
+      this.isValidCheck = true;
+      return;
     }
 
-    //Execute Auto-Replacement based on map.
-    applySuggested(event) {
-        this.oldRichText = this.textValue;
-        this.dirty = true;
-        let draftValue = this.textValue;
-        let regTerm = '';
-        for (var key in this.replaceMap) {
-            this.applyTerm = this.replaceMap[key];
-            this.regTerm = key;
-            draftValue = this.replaceAll(draftValue, this.regTerm, this.applyTerm);
-        }
-        this.textValue = draftValue;
+    if (this.hasBlockedItems(target.value)) {
+      this.isValidCheck = false;
     }
 
-    //Replace All function helper
-    replaceAll(str, term, replacement) {
-        return str.replace(new RegExp(term, 'ig'), replacement);
+    // Check invalid symbols and words
+    const rbi = this.runningBlockedInput;
+    this.errorMessage = rbi.length > 0 ? `Error - Invalid Symbols/Words: ${rbi.join(', ')}` : null;
+  }
+
+  handleRichTextKeyDown(event) {
+    // Allow backspace (8), delete (46), home (36), end (35), arrows (37-40), control/cmd (17)
+    const keys = [8,46,17,18,35,36,37,38,39,40,46];
+    // Allow Control-a (65), Control-c (67), Control-x (88) so user can delete and stuff, but not type new characters or paste more junk
+    const ctlKeys = [65,67,88];
+    const validKey = ({ctrlKey, keyCode}) => keys.includes(keyCode) || ctrlKey && ctlKeys.includes(keyCode);
+    if (this.showCounter && this.charsLeft <= 0 && !validKey(event)) {
+      event.preventDefault();
+    }
+  }
+
+  hasBlockedItems(text) {
+    let hasEm = false;
+    text = this.stripHtml(text);
+
+    // Create a list of disallowed words/symbols that actually contain elements.
+    // Anything empty will be removed
+    const naughtyLists = [this.disallowedWordsRegex, this.disallowedSymbolsRegex]
+      .filter(x => !!x);
+
+    // Update runningBlockedInput
+    for (const rx of naughtyLists) {
+      const matches = text.match(rx);
+      if (matches?.length > 0) {
+        this.addBlockedItems(matches);
+        hasEm = true;
+        // do not try to be fancy and return or break here, or all items won't be added!!!
+        // this must run for BOTH regexes in the array
+      }
     }
 
-    //Undo last change
-    handleRevert() {
-        this.textValue = this.oldRichText;
-        this.dirty = false;
+    return hasEm;
+  }
+
+  // Create a unique list of items, add any that aren't already in the blocked list
+  addBlockedItems(items) {
+    items = items.map(w => w.toLowerCase());
+    this.runningBlockedInput = Array.from(new Set([...this.runningBlockedInput,...items]));
+  }
+
+  // Helper function to build text for search replace with
+  // different highlight styles and store it on the highlight map object
+  setReplaceText(hl, prop, text, term, value) {
+    // Creates highlight HTML (e.g. bright, mid) with the left and right tags (lt/rt)
+    this.hlText[prop] = text.replaceAll(term,`${hl.lt}${value}${hl.rt}`);
+  }
+
+  // push text value on to the undo stack *only* if it is different than the last item on the stack
+  addUndo() {
+    if (this.undoStack.length == 0 || this.undoStack[this.undoStack.length -1] !== this.textValue) {
+      this.undoStack.push(this.textValue);
+    }
+  }
+
+  //Handle initiation of Search and Replace
+  handleOpenSearch(event) {
+    this.searchButton = !this.searchButton;
+  }
+
+  // Kick off search/replace if enter is pressed
+  handleSearchKeyDown({keyCode}) {
+    if (keyCode === 13) {
+      this.handleSearchReplace();
+    }
+  }
+
+  //Search and Replace Search for Value
+  handleSearchReplaceChange({target}) {
+    //TODO: Fix infinite loop, block invalid chars @ keypress
+    const filteredValue = this.escapeRegExp(target.value);
+    const targetValue = target.dataset.id === 'search' ? 'searchTerm' : 'replaceValue';
+    this.escapedVals[targetValue] = filteredValue;
+  }
+
+  //Execute Search and REplace
+  handleSearchReplace() {
+    if (this.escapedVals.searchTerm === '') {
+      // An empty string will add the replacement value between every character!
+      // This could cause exponential growth of the text with each click, so let's just not do that.
+      return;
     }
 
-    //Clean input for RegExp
-    escapeRegExp(str) {
-        return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    this.addUndo();
+
+    const term = new RegExp(this.escapedVals.searchTerm, this.regexMod);
+    const value = this.escapedVals.replaceValue;
+
+    // Store the text in three forms:
+    // no highlight (none), bright highlight (bright), and mid-level highlight (mid)
+    this.hlText = {};
+    for (const prop in hlStyles) {
+      this.setReplaceText(hlStyles[prop], prop, this.textValue, term, value);
     }
+
+    // Flash highlight
+    this.animateHighlight();
+  }
+
+  // pseudo animated flash highlight of replacement text
+  // Use array of animation timing to flash, then remove highlight
+  animateHighlight() {
+    // By passing the second parameter, animate, the search and autoreplace buttons will be disabled during
+    // animation.  The last item will return false, which will re-enable the buttons.
+    hlTimers.forEach((timer, ix) => this.setHighlightTimer(timer, ix < hlTimers.length - 1));
+  }
+
+  // Sets a future highlight change
+  setHighlightTimer({style, ms}, animate) {
+    setTimeout(() => {
+      this.animating = animate;
+      this.textValue = this.hlText[style];
+    }, ms);
+  }
+
+  //Execute Auto-Replacement based on map.
+  applySuggested(event) {
+    this.addUndo();
+    // Reset all text values in the highlight map
+    // so highlights will work correctly
+    this.hlText = {};
+    for (const term in this.replaceMap) {
+      for (const prop in hlStyles) {
+        const rex = new RegExp(term, this.regexMod);
+        const text = this.hlText[prop] || this.textValue;
+        const value = this.replaceMap[term];
+        this.setReplaceText(hlStyles[prop], prop, text, rex, value);
+      }
+    }
+    // Animate highlights
+    this.animateHighlight();
+  }
+
+  //Undo last change
+  handleRevert() {
+    this.textValue = this.undoStack.pop();
+  }
+
+  //Clean input for RegExp and matching rich text
+  escapeRegExp(str) {
+    rtfEscapeChars.forEach(({char,text}) => {
+      str = str.replaceAll(char,text);
+    });
+    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  // The opposite of escaping RTF for accurate char count
+  unescapeRichText(str) {
+    // go in reverse order, starting with &amp;
+    const rtfUnescape = [...rtfEscapeChars].reverse();
+    rtfUnescape.forEach(({char,text}) => {
+      str = str.replaceAll(text,char);
+    });
+    return str;
+  }
 }
