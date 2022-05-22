@@ -37,10 +37,6 @@ function cbToBool(value) {
   return value === "CB_TRUE";
 }
 
-// Helper to add if value is true
-function addIf(condition, text) {
-  return condition ? text : '';
-}
 export default class TextAreaPlus extends LightningElement {
   // Flow inputs
   @api autoReplaceMap;
@@ -56,8 +52,8 @@ export default class TextAreaPlus extends LightningElement {
   @track undoStack = [];
   @track escapedVals = {searchTerm: '', replaceValue: ''};
 
-  searchButton = false;
   _charsLeftTemplate = '$L/$M Characters'; // Must match CPE.js default setting
+  searchButton = false;
   textValue;
   autoReplaceEnabled = false;
   disallowedSymbolsRegex;
@@ -69,8 +65,6 @@ export default class TextAreaPlus extends LightningElement {
   ignoreCase = true;
   animating = false;
   hlText;
-  applyTerm = "";
-  regTerm = "";
   replaceMap = {};
   formats = validFormats;
 
@@ -86,9 +80,8 @@ export default class TextAreaPlus extends LightningElement {
 
   // Show help text appropriately based on whether Suggested Terms is enabled
   get caseInsensitiveHelpText() {
-    // addIf helper: If the first parameter is true, the text will be returned, otherwise empty string
-    return addIf(this.showCaseInsensitive, 'Ignore Case for Search and Replace')
-      + addIf(this.autoReplaceEnabled, ' and Suggested Terms')
+    return `${this.showCaseInsensitive ? 'Ignore Case for Search and Replace' : ''}
+            ${this.autoReplaceEnabled ? ' and Suggested Terms' : ''}`;
   }
 
   get ignoreCaseVariant() {
@@ -133,7 +126,8 @@ export default class TextAreaPlus extends LightningElement {
 
   @api
   get advancedTools() {
-    return cbToBool(this.cb_advancedTools);
+    // advanced tools can only be explained for rich text
+    return !this.plainText && cbToBool(this.cb_advancedTools);
   }
   @api cb_advancedTools;
 
@@ -196,6 +190,7 @@ export default class TextAreaPlus extends LightningElement {
   getFailObject(errors) {
     //failure scenario so set tempValue in sessionStorage
     sessionStorage.setItem("tempValue", this.value);
+    console.log('st',JSON.stringify(this))
     // Create a bulleted error message list with line breaks
     const errorMessage = `Validation Failed, please correct the following issues:
                   ${errors.map(x => `· ${x}`).join('\r\n')}`;
@@ -262,6 +257,7 @@ export default class TextAreaPlus extends LightningElement {
   }
 
   connectedCallback() {
+    console.log('tv', this.key, this.id);
     //use sessionStorage to fetch and restore latest value before validation failure.
     if (sessionStorage?.getItem("tempValue")) {
         this.value = sessionStorage.getItem("tempValue");
