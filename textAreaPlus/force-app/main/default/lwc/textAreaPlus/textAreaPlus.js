@@ -1,6 +1,8 @@
 import { LightningElement, api, track } from "lwc";
 import { FlowAttributeChangeEvent } from "lightning/flowSupport";
 
+const SESSION_STORAGE_KEY = "text-area-plus-temp-text";
+
 // List of special characters to RTF characters
 // Required for escaping search text
 // If you find a new one, add it here
@@ -188,9 +190,6 @@ export default class TextAreaPlus extends LightningElement {
   }
 
   getFailObject(errors) {
-    //failure scenario so set tempValue in sessionStorage
-    sessionStorage.setItem("tempValue", this.value);
-    console.log('st',JSON.stringify(this))
     // Create a bulleted error message list with line breaks
     const errorMessage = `Validation Failed, please correct the following issues:
                   ${errors.map(x => `· ${x}`).join('\r\n')}`;
@@ -201,7 +200,8 @@ export default class TextAreaPlus extends LightningElement {
   }
 
   @api validate() {
-    // Move current textValue to value prop for saving on the session
+    // whatever the text is, store it in the session
+    this.storeValue();
     this.value = this.textValue;
     const errors = [];
 
@@ -243,6 +243,7 @@ export default class TextAreaPlus extends LightningElement {
 
     // If we're here, it's valid
     return { isValid: true };
+
   }
 
   // Helper for removing html tags for accurate rich text length count
@@ -257,13 +258,7 @@ export default class TextAreaPlus extends LightningElement {
   }
 
   connectedCallback() {
-    console.log('tv', this.key, this.id);
-    //use sessionStorage to fetch and restore latest value before validation failure.
-    if (sessionStorage?.getItem("tempValue")) {
-        this.value = sessionStorage.getItem("tempValue");
-        sessionStorage.removeItem("tempValue"); //clear value after selection
-    }
-
+    this.popStoredValue();
     if (this.advancedTools) {
       // Use value from session, or blank
       this.textValue = this.value || '';
@@ -520,9 +515,49 @@ export default class TextAreaPlus extends LightningElement {
   unescapeRichText(str) {
     // go in reverse order, starting with &amp;
     const rtfUnescape = [...rtfEscapeChars].reverse();
-    rtfUnescape.forEach(({char,text}) => {
-      str = str.replaceAll(text,char);
+    rtfUnescape.forEach(x => {
+      str = str.replaceAll(x.text, x.char);
     });
     return str;
   }
+
+  popStoredValue() {
+    // Text values should be on the session storage in case validation fails
+    // pop from the stack of values in order
+    const tmpArr = this.sessionArray;
+    if (tmpArr.length > 0) {
+      this.value = tmpArr.shift();
+      if (tmpArr.length > 0) {
+        sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(tmpArr));
+      } else {
+        sessionStorage.removeItem(SESSION_STORAGE_KEY); //clear value after selection
+      }
+    }
+  }
+
+  storeValue() {
+    let tmpArr = this.sessionArray;
+    tmpArr.push(this.value);
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(tmpArr));
+  }
+
+  // return a valid array, otherwise, remove session storage
+  get sessionArray() {
+    const tmpArrStr = sessionStorage?.getItem(SESSION_STORAGE_KEY);
+    let tmpArr;
+    if (tmpArrStr) {
+      try {
+        tmpArr = JSON.parse(tmpArrStr);
+        if (Array.isArray(tmpArr)) {
+          // This is valid - return the deserialized array
+          return tmpArr;
+        }
+      } catch (e) {
+        console.log('error parsing session info')
+      }
+    }
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    return [];
+  }
+
 }
