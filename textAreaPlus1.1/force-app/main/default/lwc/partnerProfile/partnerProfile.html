@@ -1,0 +1,34 @@
+<template>
+    <template if:true={error}>
+        <div>Unable to load details</div>
+    </template>
+    <template if:true={hasLoaded}>
+        <div class="profile-container">
+            <div class="logo">
+                <lightning-formatted-rich-text value={imageURL} class="logo-styles"></lightning-formatted-rich-text>
+            </div>
+            <div class="profile-header">My Profile</div>
+            <template for:each={partnerProfileGroupList} for:item="profile">
+                <div class="profile-body" key={profile.Model}>
+                    <div class="name-styles" >{profile.Model} Programs</div>
+                    <template for:each={profile.Programs} for:item="program">
+                        <div class="profile-sub-body" key={program.Name}>
+                            <div>Name: {program.Name}</div>
+                            <div>Level: {program.Level}</div>
+                        </div>
+                    </template>
+                </div>
+            </template>
+            <div class="profile-footer">
+                <div><a href={dlx_url} target="_blank">Learn more</a> about Deluxe partnership programs and levels</div>
+            </div>
+        </div>
+    </template>
+</template>
+
+<!--<template for:each={partnerProfileList} for:item="profile">
+            <div class="profile-body" key={profile.programName}>
+                <div class="name-styles">{profile.programName}</div>
+                <div>Level: {profile.programLevel}</div>
+            </div>
+</template>-->
