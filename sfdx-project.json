@@ -1,7 +1,7 @@
 {
   "packageDirectories": [
     {
-      "path": "force-app",
+      "path": "textAreaPlus1.1\\force-app",
       "default": true
     }
   ],
