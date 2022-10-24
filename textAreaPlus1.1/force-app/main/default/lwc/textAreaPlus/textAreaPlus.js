@@ -1,8 +1,8 @@
 import { LightningElement, api, track } from "lwc";
 import { FlowAttributeChangeEvent } from "lightning/flowSupport";
+import * as share from "./tapshare.js";
 
-const SESSION_STORAGE_KEY = "text-area-plus-temp-text";
-const VALID_KEY = "text-area-plus-valid";
+const SESSION_STORAGE_KEY = "tap-temp-text";
 
 // List of special characters to RTF characters
 // Required for escaping search text
@@ -10,7 +10,7 @@ const VALID_KEY = "text-area-plus-valid";
 const rtfEscapeChars = [
   { char: "&", text: "&amp;" }, // DO THIS FIRST! Trust me
   { char: "<", text: "&lt;" },
-  { char: ">", text: "&gt;" },
+  { char: ">", text: "&gt;" }
 ];
 
 // Used for search and replace temp highlight
@@ -18,7 +18,7 @@ const rtfEscapeChars = [
 const hlStyles = {
   bright: { lt: `<span style="background-color:#ffd500">`, rt: "</span>" },
   mid: { lt: `<span style="background-color:#fff2b2">`, rt: "</span>" },
-  none: { lt: "", rt: "" },
+  none: { lt: "", rt: "" }
 };
 
 // timing for animation of highlights
@@ -26,7 +26,7 @@ const hlTimers = [
   { style: "mid", ms: 0 },
   { style: "bright", ms: 75 }, // main highlight - bright
   { style: "mid", ms: 525 }, // start fading out for 75ms
-  { style: "none", ms: 600 }, // reset to text without highlight html
+  { style: "none", ms: 600 } // reset to text without highlight html
 ];
 
 // All possible options as of SP22
@@ -52,7 +52,7 @@ const validFormats = [
   "code-block",
   "script",
   "blockquote",
-  "direction",
+  "direction"
 ];
 
 // Convert CB values to a boolean
@@ -74,6 +74,7 @@ export default class TextAreaPlus extends LightningElement {
   @track runningBlockedInput = [];
   @track undoStack = [];
   @track escapedVals = { searchTerm: "", replaceValue: "" };
+  index = null;
 
   _charsLeftTemplate = "$L/$M Characters"; // Must match CPE.js default setting
   searchButton = false;
@@ -90,6 +91,7 @@ export default class TextAreaPlus extends LightningElement {
   hlText;
   replaceMap = {};
   formats = validFormats;
+  textValue;
 
   // If either search or autoreplace is enabled, allow case insensitive
   get showCaseInsensitive() {
@@ -114,14 +116,16 @@ export default class TextAreaPlus extends LightningElement {
   }
 
   get applyAltText() {
+    let mapTxt = "";
     try {
       const prettyMap = Object.keys(this.replaceMap)
         ?.map((x) => `${x} -> ${this.replaceMap?.[x]}`)
         ?.join(",");
-      return `Apply Suggested Terms (${prettyMap})`;
+      mapTxt = `(${prettyMap})`;
     } catch (e) {
-      return "Apply Suggested Terms";
+      console.log("Exception in applyAltText", e);
     }
+    return `Apply Suggested Terms ${mapTxt}`;
   }
 
   // based on whether ignore case is selected, use the modifier
@@ -150,7 +154,8 @@ export default class TextAreaPlus extends LightningElement {
   }
 
   get richText() {
-    return this.textMode === "rich";
+    // if it's never set - it's rich text
+    return this.textMode == null || this.textMode === "rich";
   }
 
   get showCounter() {
@@ -205,15 +210,13 @@ export default class TextAreaPlus extends LightningElement {
     }
   }
 
-  //@api
-  //get value() {
-  //  return this.textValue;
-  // }
-  // set value(val) {
-  //   this.textValue = val;
-  // }
-
-  @api value;
+  @api
+  get value() {
+    return this.textValue;
+  }
+  set value(val) {
+    this.textValue = val;
+  }
 
   @api
   get charsLeftTemplate() {
@@ -230,19 +233,19 @@ export default class TextAreaPlus extends LightningElement {
     const errorMessage = `Validation Failed, please correct the following issues:
                   ${errors.map((x) => `· ${x}`).join("\r\n")}`;
 
-    console.log("this is NOT valid!!");
-    sessionStorage.setItem(VALID_KEY, "false");
-
+    share.setValid(this.index, false);
     return {
       isValid: false,
-      errorMessage,
+      errorMessage
     };
   }
 
   @api validate() {
     // whatever the text is, store it in the session
-    this.storeValue();
-    //this.value = this.textValue;
+    if (this.index === 0) {
+      this.storeValues();
+    }
+
     const errors = [];
 
     // Case 1 - required has been checked, but there's not text
@@ -269,14 +272,7 @@ export default class TextAreaPlus extends LightningElement {
     // If advanced tools haven't been enabled
     // Or advanced tools is enabled with warn only, we're done
     if (!this.advancedTools || this.warnOnly) {
-      sessionStorage.removeItem(SESSION_STORAGE_KEY);
-      let valid = JSON.parse(sessionStorage.getItem(VALID_KEY));
-
-      console.log("what is this1", valid);
-      if (valid == null) {
-        sessionStorage.setItem(VALID_KEY, "true");
-      }
-
+      this.finalizeValidation();
       return { isValid: true };
     }
 
@@ -291,16 +287,22 @@ export default class TextAreaPlus extends LightningElement {
       return this.getFailObject(errors);
     }
 
-    let valid = JSON.parse(sessionStorage.getItem(VALID_KEY));
-    console.log("what is this2", valid);
-
-    if (valid == null) {
-      sessionStorage.setItem(VALID_KEY, true);
-    }
-
-    // If we're here, it's valid
-    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    this.finalizeValidation();
     return { isValid: true };
+  }
+
+  // If this component is valid, track the status and confirm that all items are valid
+  finalizeValidation() {
+    share.setValid(this.index, true);
+    const tmpArr = JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY));
+    if (tmpArr?.length > 0) {
+      console.log("tru", this.index, tmpArr?.length, share.getAllValid());
+      // we can detect the last element here and make sure all elements are valid.
+      // In this case, we know we'll move to the next step and can remove the stored array
+      if (this.index === tmpArr?.length - 1 && share.getAllValid()) {
+        sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      }
+    }
   }
 
   // Helper for removing html tags for accurate rich text length count
@@ -315,10 +317,8 @@ export default class TextAreaPlus extends LightningElement {
   }
 
   connectedCallback() {
-    this.popStoredValue();
+    // Build regexes first - will be needed for validation
     if (this.advancedTools) {
-      // Use value from session, or blank
-      // this.textValue = this.value || '';
       // Build regex for disallowed symbols and words (if listed)
       // This will pass in a function to format the regex correctly by type
       this.setRegex("Symbols", (x) => `\\${x}`);
@@ -327,6 +327,20 @@ export default class TextAreaPlus extends LightningElement {
       if (this.autoReplaceMap != undefined) {
         this.replaceMap = JSON.parse(this.autoReplaceMap);
         this.autoReplaceEnabled = true;
+      }
+    }
+
+    // Assign an index to this component in case multiple components are in the same flow
+    this.getStoredValues();
+    if (!this.index) {
+      this.index = share.getIndex();
+      const txt = share.getItem(this.index);
+      const obj = { value: txt, init: true };
+      // use handler here so we can get error messages, blocked items, etc.
+      if (this.plainText && txt) {
+        this.handleChange({ detail: obj });
+      } else if (this.richText && txt) {
+        this.handleTextChange({ target: obj });
       }
     }
   }
@@ -348,7 +362,7 @@ export default class TextAreaPlus extends LightningElement {
   get len() {
     // for plain text, just return the length
     // for rich text, strip the HTML
-    return this.stripHtml(this.value)?.length || 0;
+    return this.stripHtml(this.textValue)?.length || 0;
   }
 
   // Dynamically calculate remaining characters
@@ -370,30 +384,41 @@ export default class TextAreaPlus extends LightningElement {
   }
 
   // Common text value updater for Plan or Rich text
-  updateText(value) {
-    this.value = value;
+  updateText(item) {
+    const value = item?.value;
+    const init = item?.init;
+    // update tracked value (not api value directly)
+    this.textValue = value;
+
+    // update the singleton, but not on initialization
+    if (!init) {
+      share.setItem(this.index, value);
+    }
+
     // required for Flow
     const attributeChangeEvent = new FlowAttributeChangeEvent(
       "value",
-      this.value
+      this.textValue
     );
     this.dispatchEvent(attributeChangeEvent);
   }
 
   // Event handler for plain text change
   handleChange({ detail }) {
-    this.updateText(detail.value);
+    this.updateText(detail);
   }
 
   //Handle updates to Rich Text field
   handleTextChange({ target }) {
-    this.updateText(target.value);
+    this.updateText(target);
     this.isValidCheck = true;
 
     // We're done if advanced tools aren't enabled
     if (!this.advancedTools) {
       return;
     }
+
+    console.log("handleTextChange", target, this.disallowedWordsList);
 
     // minimum length takes precedence over disallowed words
     if (this.minlen > 0 && this.len < this.minlen) {
@@ -442,7 +467,7 @@ export default class TextAreaPlus extends LightningElement {
     // Anything empty will be removed
     const naughtyLists = [
       this.disallowedWordsRegex,
-      this.disallowedSymbolsRegex,
+      this.disallowedSymbolsRegex
     ].filter((x) => !!x);
 
     // Update runningBlockedInput
@@ -478,9 +503,9 @@ export default class TextAreaPlus extends LightningElement {
   addUndo() {
     if (
       this.undoStack.length == 0 ||
-      this.undoStack[this.undoStack.length - 1] !== this.value
+      this.undoStack[this.undoStack.length - 1] !== this.textValue
     ) {
-      this.undoStack.push(this.value);
+      this.undoStack.push(this.textValue);
     }
   }
 
@@ -522,7 +547,7 @@ export default class TextAreaPlus extends LightningElement {
     // no highlight (none), bright highlight (bright), and mid-level highlight (mid)
     this.hlText = {};
     for (const prop in hlStyles) {
-      this.setReplaceText(hlStyles[prop], prop, this.value, term, value);
+      this.setReplaceText(hlStyles[prop], prop, this.textValue, term, value);
     }
 
     // Flash highlight
@@ -543,7 +568,7 @@ export default class TextAreaPlus extends LightningElement {
   setHighlightTimer({ style, ms }, animate) {
     setTimeout(() => {
       this.animating = animate;
-      this.value = this.hlText[style];
+      this.textValue = this.hlText[style];
     }, ms);
   }
 
@@ -556,7 +581,7 @@ export default class TextAreaPlus extends LightningElement {
     for (const term in this.replaceMap) {
       for (const prop in hlStyles) {
         const rex = new RegExp(term, this.regexMod);
-        const text = this.hlText[prop] || this.value;
+        const text = this.hlText[prop] || this.textValue;
         const value = this.replaceMap[term];
         this.setReplaceText(hlStyles[prop], prop, text, rex, value);
       }
@@ -567,7 +592,7 @@ export default class TextAreaPlus extends LightningElement {
 
   //Undo last change
   handleRevert() {
-    this.value = this.undoStack.pop();
+    this.textValue = this.undoStack.pop();
   }
 
   //Clean input for RegExp and matching rich text
@@ -593,49 +618,27 @@ export default class TextAreaPlus extends LightningElement {
     return str;
   }
 
-  popStoredValue() {
-    // Text values should be on the session storage in case validation fails
-    // pop from the stack of values in order
-    const tmpArr = this.sessionArray;
-    if (tmpArr.length > 0) {
-      this.value = tmpArr.shift();
-      if (tmpArr.length > 0) {
-        sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(tmpArr));
-      } else {
-        sessionStorage.removeItem(SESSION_STORAGE_KEY); //clear value after selection
-      }
+  // Get the stored values from the session and put them on the singleton
+  getStoredValues() {
+    if (this.index > 0) {
+      return;
     }
+    const tmpArr = JSON.parse(sessionStorage.getItem(SESSION_STORAGE_KEY));
+    if (tmpArr) {
+      share.setArr(tmpArr);
+    }
+    console.log("got session arr", tmpArr);
   }
 
-  storeValue() {
-    let tmpArr = this.sessionArray;
-    tmpArr.push(this.value);
-    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(tmpArr));
-  }
-
-  // return a valid array, otherwise, remove session storage
-  get sessionArray() {
-    console.log("is valid? ", sessionStorage.getItem(VALID_KEY));
-    if (JSON.parse(sessionStorage.getItem(VALID_KEY)) === true) {
-      console.log("this was valid");
-      sessionStorage.removeItem(SESSION_STORAGE_KEY);
-      sessionStorage.removeItem(VALID_KEY);
-      return [];
+  // Store whatever is in the singleton into the session storage
+  storeValues() {
+    if (this.index > 0) {
+      return;
     }
-    const tmpArrStr = sessionStorage?.getItem(SESSION_STORAGE_KEY);
-    let tmpArr;
-    if (tmpArrStr) {
-      try {
-        tmpArr = JSON.parse(tmpArrStr);
-        if (Array.isArray(tmpArr)) {
-          // This is valid - return the deserialized array
-          return tmpArr;
-        }
-      } catch (e) {
-        console.log("error parsing session info");
-      }
-    }
-    sessionStorage.removeItem(SESSION_STORAGE_KEY);
-    return [];
+    console.log("storeValue()", share.getArr());
+    const serializedArr = JSON.stringify(share.getArr());
+    sessionStorage.setItem(SESSION_STORAGE_KEY, serializedArr);
+    share.reset();
+    console.log("stored", sessionStorage.getItem(SESSION_STORAGE_KEY));
   }
 }

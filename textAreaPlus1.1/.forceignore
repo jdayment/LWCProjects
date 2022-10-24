@@ -1,3 +1,9 @@
 **/jsconfig.json
 
 **/.eslintrc.json
+
+force-app/main/default/lwc/fsc_*
+force-app/main/default/lwc/partnerProfile
+force-app/main/default/navigationMenus/*
+force-app/main/default/networks/*
+force-app/main/default/siteDotComSites/*
