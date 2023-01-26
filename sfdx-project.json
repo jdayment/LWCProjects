@@ -3,9 +3,12 @@
     {
       "path": "textAreaPlus1.1\\force-app",
       "default": true
+    },
+    {
+      "path": "Datapoller V2\\Datapoller V2\\force-app"
     }
   ],
   "namespace": "",
   "sfdcLoginUrl": "https://login.salesforce.com",
-  "sourceApiVersion": "53.0"
+  "sourceApiVersion": "56.0"
 }
