@@ -1,12 +1,14 @@
-@isTest
-public with sharing class DataFetcherControllerTest {
-    public DataFetcherControllerTest() {
+@IsTest
+private class DataFetcherControllerTest {
+  @IsTest
+  static void canQuery() {
+    insert new List<SObject>{ new Account(Name = 'One'), new Account(Name = 'Two') };
 
-    }
+    DataFetcherController.QueryResult result = DataFetcherController.getSObjects(
+      'SELECT Id, Name FROM Account ORDER BY Name'
+    );
 
-    @isTest
-    static void canQuery() {
-        List<Sobject> records = DataFetcherController.getSobjects('SELECT Id FROM Account');
-        System.assertNotEquals(null, records);
-    }
+    Assert.areEqual(2, result.results.size());
+    Assert.areEqual('One', result.firstResult.get(Account.Name));
+  }
 }

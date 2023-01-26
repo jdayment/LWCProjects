@@ -1,36 +1,38 @@
-import { api, LightningElement } from 'lwc';
-import getSobjects from '@salesforce/apex/DataFetcherController.getSobjects';
-import { FlowAttributeChangeEvent } from 'lightning/flowSupport';
+import { api, LightningElement } from "lwc";
+import getSObjects from "@salesforce/apex/DataFetcherController.getSObjects";
+import { FlowAttributeChangeEvent } from "lightning/flowSupport";
+
 export default class DataFetcher extends LightningElement {
-    @api queryString;
-    @api retrievedRecords = [];
-    @api error;
+  @api queryString;
+  @api firstRetrievedRecord;
+  @api retrievedRecords = [];
+  @api error;
 
-    //using a renderedCallback vs connectedCallback seems to work when using reactivity
-    renderedCallback() {
-        //I needed to look for an empty string vs null on query string because it wasn't treating it as null for some reason
-        if(this.queryString != ""){
-            this.getRecords()}
-        }
+  renderedCallback() {
+    this.getRecords();
+  }
 
-    getRecords() {
-        {
-        
-            getSobjects({queryString : this.queryString}).then(
-                result => {
-                    
-                    this.retrievedRecords = result;
-                    this.dispatchEvent(new FlowAttributeChangeEvent('retrievedRecords', this.retrievedRecords));
-                                 
-                }
-            ).catch(
-                error => {
-                    this.error = error.body.message;
-                    console.error('error', error);
-                    this.dispatchEvent(new FlowAttributeChangeEvent('error', this.error.body.message)); 
-                }
-            );
-        }
+  getRecords() {
+    this.error = undefined;
+    if (this.queryString) {
+      getSObjects({ queryString: this.queryString })
+        .then(({ results, firstResult }) => {
+          this.retrievedRecords = results;
+          this.firstRetrievedRecord = firstResult;
+          this._fireFlowEvent("firstRetrievedRecord", this.firstRetrievedRecord);
+          this._fireFlowEvent("retrievedRecords", this.retrievedRecords);
+        })
+        .catch(this._displayError);
     }
+  }
 
+  _displayError(error) {
+    this.error = error?.body?.message ?? JSON.stringify(error);
+    console.error(error);
+    this._fireFlowEvent("error", this.error);
+  }
+
+  _fireFlowEvent(eventName, data) {
+    this.dispatchEvent(new FlowAttributeChangeEvent(eventName, data));
+  }
 }
