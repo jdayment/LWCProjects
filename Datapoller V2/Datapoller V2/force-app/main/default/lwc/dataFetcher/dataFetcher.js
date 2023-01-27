@@ -9,21 +9,34 @@ export default class DataFetcher extends LightningElement {
   @api error;
 
   renderedCallback() {
-    this.getRecords();
+    if (this.queryString) {
+    this._getRecords();}
+    console.log("Records are: " + JSON.stringify(this.retrievedRecords))
   }
 
-  getRecords() {
-    this.error = undefined;
-    if (this.queryString) {
+  handleOnChange() {
+    this._debounceGetRecords();
+  }
+
+  _getRecords() {
+    
+    console.log("Query String is " + this.queryString)
+    
       getSObjects({ queryString: this.queryString })
         .then(({ results, firstResult }) => {
+          this.error = undefined;
           this.retrievedRecords = results;
           this.firstRetrievedRecord = firstResult;
           this._fireFlowEvent("firstRetrievedRecord", this.firstRetrievedRecord);
           this._fireFlowEvent("retrievedRecords", this.retrievedRecords);
         })
         .catch(this._displayError);
-    }
+    
+  }
+
+  _debounceGetRecords() {
+    this._debounceTimer && clearTimeout(this._debounceTimer);
+    this._debounceTimer = setTimeout(() => this._getRecords(), 300);
   }
 
   _displayError(error) {
