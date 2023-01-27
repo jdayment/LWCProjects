@@ -1,28 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Flow xmlns="http://soap.sforce.com/2006/04/metadata">
-    <apiVersion>53.0</apiVersion>
+    <apiVersion>57.0</apiVersion>
+    <choices>
+        <name>accountsNoTicker</name>
+        <choiceText>Accounts with no Ticker Symbol</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>SELECT Id, Name FROM Account WHERE TickerSymbol = null</stringValue>
+        </value>
+    </choices>
     <choices>
         <name>allAccounts</name>
         <choiceText>All</choiceText>
         <dataType>String</dataType>
         <value>
-            <stringValue>SELECT BillingCity, Id, Name, Phone FROM Account</stringValue>
-        </value>
-    </choices>
-    <choices>
-        <name>arizonaAccounts</name>
-        <choiceText>Arizona Accounts</choiceText>
-        <dataType>String</dataType>
-        <value>
-            <stringValue>SELECT BillingCity, Id, Name, Phone FROM Account WHERE BillingState = &apos;Arizona&apos;</stringValue>
+            <stringValue>SELECT Id, Name FROM Account</stringValue>
         </value>
     </choices>
     <environments>Default</environments>
-    <formulas>
-        <name>url</name>
-        <dataType>String</dataType>
-        <expression>LEFT({!$Api.Partner_Server_URL_340},FIND(&quot;/services&quot;, {!$Api.Partner_Server_URL_340}))</expression>
-    </formulas>
     <interviewLabel>Data Fetcher Test Flow {!$Flow.CurrentDateTime}</interviewLabel>
     <label>Data Fetcher Test Flow</label>
     <processMetadataValues>
@@ -44,55 +39,22 @@
         </value>
     </processMetadataValues>
     <processType>Flow</processType>
-    <recordLookups>
-        <name>Get_Accounts</name>
-        <label>Get Accounts</label>
+    <screens>
+        <name>Screen_1</name>
+        <label>Screen 1</label>
         <locationX>176</locationX>
         <locationY>158</locationY>
-        <assignNullValuesIfNoRecordsFound>false</assignNullValuesIfNoRecordsFound>
-        <connector>
-            <targetReference>Flex_Card_Screen</targetReference>
-        </connector>
-        <getFirstRecordOnly>false</getFirstRecordOnly>
-        <object>Account</object>
-        <storeOutputAutomatically>true</storeOutputAutomatically>
-    </recordLookups>
-    <runInMode>SystemModeWithoutSharing</runInMode>
-    <screens>
-        <name>Display_Outputs</name>
-        <label>Display Outputs</label>
-        <locationX>176</locationX>
-        <locationY>398</locationY>
         <allowBack>true</allowBack>
         <allowFinish>true</allowFinish>
         <allowPause>true</allowPause>
         <fields>
-            <name>display</name>
-            <fieldText>&lt;p&gt;Single Value: {!flexCards.value}&lt;/p&gt;&lt;p&gt;&lt;br&gt;&lt;/p&gt;&lt;p&gt;Multiple Values: {!flexCards.selectedRecordIds}&lt;/p&gt;</fieldText>
-            <fieldType>DisplayText</fieldType>
-        </fields>
-        <showFooter>true</showFooter>
-        <showHeader>true</showHeader>
-    </screens>
-    <screens>
-        <name>Flex_Card_Screen</name>
-        <label>Flex Card Screen</label>
-        <locationX>176</locationX>
-        <locationY>278</locationY>
-        <allowBack>true</allowBack>
-        <allowFinish>true</allowFinish>
-        <allowPause>true</allowPause>
-        <connector>
-            <targetReference>Display_Outputs</targetReference>
-        </connector>
-        <fields>
-            <name>Choose_Account_Collection</name>
-            <choiceReferences>arizonaAccounts</choiceReferences>
-            <choiceReferences>allAccounts</choiceReferences>
+            <name>Enter_Query_String</name>
             <dataType>String</dataType>
-            <defaultSelectedChoiceReference>allAccounts</defaultSelectedChoiceReference>
-            <fieldText>Choose Account Collection</fieldText>
-            <fieldType>DropdownBox</fieldType>
+            <defaultValue>
+                <stringValue>SELECT Id, Name FROM Account</stringValue>
+            </defaultValue>
+            <fieldText>Enter Query String</fieldText>
+            <fieldType>InputField</fieldType>
             <isRequired>false</isRequired>
         </fields>
         <fields>
@@ -106,7 +68,7 @@
             <inputParameters>
                 <name>queryString</name>
                 <value>
-                    <elementReference>Choose_Account_Collection</elementReference>
+                    <elementReference>Enter_Query_String</elementReference>
                 </value>
             </inputParameters>
             <inputsOnNextNavToAssocScrn>UseStoredValues</inputsOnNextNavToAssocScrn>
@@ -114,77 +76,41 @@
             <storeOutputAutomatically>true</storeOutputAutomatically>
         </fields>
         <fields>
-            <name>flexCards</name>
+            <name>dataTable</name>
             <dataTypeMappings>
                 <typeName>T</typeName>
                 <typeValue>Account</typeValue>
             </dataTypeMappings>
-            <extensionName>c:fsc_flexcardFlow</extensionName>
+            <extensionName>flowruntime:datatable</extensionName>
             <fieldType>ComponentInstance</fieldType>
             <inputParameters>
-                <name>objectAPIName</name>
+                <name>label</name>
                 <value>
-                    <stringValue>Account</stringValue>
+                    <stringValue>Data Table</stringValue>
                 </value>
             </inputParameters>
             <inputParameters>
-                <name>fields</name>
+                <name>selectionMode</name>
                 <value>
-                    <stringValue>[{&quot;label&quot;:&quot;Billing Address&quot;,&quot;name&quot;:&quot;BillingAddress&quot;,&quot;type&quot;:&quot;ADDRESS&quot;,&quot;hidden&quot;:false},{&quot;label&quot;:&quot;Account Phone&quot;,&quot;name&quot;:&quot;Phone&quot;,&quot;type&quot;:&quot;PHONE&quot;,&quot;hidden&quot;:false},{&quot;label&quot;:&quot;Account Type&quot;,&quot;name&quot;:&quot;Type&quot;,&quot;type&quot;:&quot;PICKLIST&quot;,&quot;hidden&quot;:false}]</stringValue>
+                    <stringValue>MULTI_SELECT</stringValue>
                 </value>
             </inputParameters>
             <inputParameters>
-                <name>actionDisplayType</name>
+                <name>minRowSelection</name>
                 <value>
-                    <stringValue>menu</stringValue>
+                    <numberValue>0.0</numberValue>
                 </value>
             </inputParameters>
             <inputParameters>
-                <name>flows</name>
-                <value>
-                    <stringValue>[]</stringValue>
-                </value>
-            </inputParameters>
-            <inputParameters>
-                <name>cb_isClickable</name>
-                <value>
-                    <stringValue>CB_FALSE</stringValue>
-                </value>
-            </inputParameters>
-            <inputParameters>
-                <name>cb_allowMultiSelect</name>
-                <value>
-                    <stringValue>CB_FALSE</stringValue>
-                </value>
-            </inputParameters>
-            <inputParameters>
-                <name>cb_transitionOnClick</name>
-                <value>
-                    <stringValue>CB_FALSE</stringValue>
-                </value>
-            </inputParameters>
-            <inputParameters>
-                <name>buttonLabel</name>
-                <value>
-                    <stringValue>Actions</stringValue>
-                </value>
-            </inputParameters>
-            <inputParameters>
-                <name>cardSizeString</name>
-                <value>
-                    <numberValue>500.0</numberValue>
-                </value>
-            </inputParameters>
-            <inputParameters>
-                <name>icon</name>
-                <value>
-                    <stringValue>standard:account</stringValue>
-                </value>
-            </inputParameters>
-            <inputParameters>
-                <name>records</name>
+                <name>tableData</name>
                 <value>
                     <elementReference>dataFetcher.retrievedRecords</elementReference>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>columns</name>
+                <value>
+                    <stringValue>[{&quot;apiName&quot;:&quot;Name&quot;,&quot;guid&quot;:&quot;column-a132&quot;,&quot;editable&quot;:false,&quot;hasCustomHeaderLabel&quot;:false,&quot;customHeaderLabel&quot;:&quot;&quot;,&quot;wrapText&quot;:true,&quot;order&quot;:0,&quot;label&quot;:&quot;Account Name&quot;,&quot;type&quot;:&quot;text&quot;},{&quot;apiName&quot;:&quot;BillingCity&quot;,&quot;guid&quot;:&quot;column-586d&quot;,&quot;editable&quot;:false,&quot;hasCustomHeaderLabel&quot;:false,&quot;customHeaderLabel&quot;:&quot;&quot;,&quot;wrapText&quot;:true,&quot;order&quot;:1,&quot;label&quot;:&quot;Billing City&quot;,&quot;type&quot;:&quot;text&quot;},{&quot;apiName&quot;:&quot;Phone&quot;,&quot;guid&quot;:&quot;column-a20a&quot;,&quot;editable&quot;:false,&quot;hasCustomHeaderLabel&quot;:false,&quot;customHeaderLabel&quot;:&quot;&quot;,&quot;wrapText&quot;:true,&quot;order&quot;:2,&quot;label&quot;:&quot;Account Phone&quot;,&quot;type&quot;:&quot;phone&quot;}]</stringValue>
                 </value>
             </inputParameters>
             <inputsOnNextNavToAssocScrn>UseStoredValues</inputsOnNextNavToAssocScrn>
@@ -192,19 +118,14 @@
             <storeOutputAutomatically>true</storeOutputAutomatically>
         </fields>
         <showFooter>true</showFooter>
-        <showHeader>false</showHeader>
+        <showHeader>true</showHeader>
     </screens>
     <start>
         <locationX>50</locationX>
         <locationY>0</locationY>
         <connector>
-            <targetReference>Get_Accounts</targetReference>
+            <targetReference>Screen_1</targetReference>
         </connector>
     </start>
-    <status>Active</status>
-    <textTemplates>
-        <name>label</name>
-        <isViewedAsPlainText>false</isViewedAsPlainText>
-        <text>&lt;p style=&quot;text-align: center;&quot;&gt;&lt;b style=&quot;font-size: 24px;&quot;&gt;I present to you Flow Flex Cards!!!🎆🎇🔥🔥🔥🎉🎉🍾🍾&lt;/b&gt;&lt;/p&gt;</text>
-    </textTemplates>
+    <status>Draft</status>
 </Flow>
