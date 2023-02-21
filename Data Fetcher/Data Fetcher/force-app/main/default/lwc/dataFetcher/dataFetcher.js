@@ -8,7 +8,7 @@ export default class DataFetcher extends LightningElement {
   @api retrievedRecords = [];
   @api error;
 
-  connectedCallback() {
+  renderedCallback() {
     if (this.queryString) {
     this._getRecords();}
     console.log("Records are: " + JSON.stringify(this.retrievedRecords))
