@@ -1,4 +1,4 @@
-import { api, LightningElement } from "lwc";
+import { api,track, LightningElement } from "lwc";
 import getSObjects from "@salesforce/apex/DataFetcherController.getSObjects";
 import { FlowAttributeChangeEvent } from "lightning/flowSupport";
 
@@ -7,9 +7,11 @@ export default class DataFetcher extends LightningElement {
   @api firstRetrievedRecord;
   @api retrievedRecords = [];
   @api error;
+  @track oldQuery;
+
 
   renderedCallback() {
-    if (this.queryString) {
+    if (this.queryString && this.queryString != this.oldQuery) {
     this._getRecords();}
     console.log("Records are: " + JSON.stringify(this.retrievedRecords))
   }
@@ -31,6 +33,8 @@ export default class DataFetcher extends LightningElement {
           this._fireFlowEvent("retrievedRecords", this.retrievedRecords);
         })
         .catch(this._displayError);
+
+        this.oldQuery = this.queryString;
     
   }
 
