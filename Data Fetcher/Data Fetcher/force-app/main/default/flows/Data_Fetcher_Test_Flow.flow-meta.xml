@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>57.0</apiVersion>
+    <choices>
+        <name>accountsNoTicker</name>
+        <choiceText>Accounts with no Ticker Symbol</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>SELECT Id, Name FROM Account WHERE TickerSymbol = null</stringValue>
+        </value>
+    </choices>
+    <choices>
+        <name>allAccounts</name>
+        <choiceText>All</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>SELECT Id, Name FROM Account</stringValue>
+        </value>
+    </choices>
+    <environments>Default</environments>
+    <interviewLabel>Data Fetcher Test Flow {!$Flow.CurrentDateTime}</interviewLabel>
+    <label>Data Fetcher Test Flow</label>
+    <processMetadataValues>
+        <name>BuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>CanvasMode</name>
+        <value>
+            <stringValue>AUTO_LAYOUT_CANVAS</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>OriginBuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processType>Flow</processType>
+    <screens>
+        <name>Screen_1</name>
+        <label>Screen 1</label>
+        <locationX>176</locationX>
+        <locationY>158</locationY>
+        <allowBack>true</allowBack>
+        <allowFinish>true</allowFinish>
+        <allowPause>true</allowPause>
+        <fields>
+            <name>Enter_Query_String</name>
+            <dataType>String</dataType>
+            <defaultValue>
+                <stringValue>SELECT Id, Name FROM Account</stringValue>
+            </defaultValue>
+            <fieldText>Enter Query String</fieldText>
+            <fieldType>InputField</fieldType>
+            <isRequired>false</isRequired>
+        </fields>
+        <fields>
+            <name>dataFetcher</name>
+            <dataTypeMappings>
+                <typeName>T</typeName>
+                <typeValue>Account</typeValue>
+            </dataTypeMappings>
+            <extensionName>c:dataFetcher</extensionName>
+            <fieldType>ComponentInstance</fieldType>
+            <inputParameters>
+                <name>queryString</name>
+                <value>
+                    <elementReference>Enter_Query_String</elementReference>
+                </value>
+            </inputParameters>
+            <inputsOnNextNavToAssocScrn>UseStoredValues</inputsOnNextNavToAssocScrn>
+            <isRequired>true</isRequired>
+            <storeOutputAutomatically>true</storeOutputAutomatically>
+        </fields>
+        <fields>
+            <name>dataTable</name>
+            <dataTypeMappings>
+                <typeName>T</typeName>
+                <typeValue>Account</typeValue>
+            </dataTypeMappings>
+            <extensionName>flowruntime:datatable</extensionName>
+            <fieldType>ComponentInstance</fieldType>
+            <inputParameters>
+                <name>label</name>
+                <value>
+                    <stringValue>Data Table</stringValue>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>selectionMode</name>
+                <value>
+                    <stringValue>MULTI_SELECT</stringValue>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>minRowSelection</name>
+                <value>
+                    <numberValue>0.0</numberValue>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>tableData</name>
+                <value>
+                    <elementReference>dataFetcher.retrievedRecords</elementReference>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>columns</name>
+                <value>
+                    <stringValue>[{&quot;apiName&quot;:&quot;Name&quot;,&quot;guid&quot;:&quot;column-a132&quot;,&quot;editable&quot;:false,&quot;hasCustomHeaderLabel&quot;:false,&quot;customHeaderLabel&quot;:&quot;&quot;,&quot;wrapText&quot;:true,&quot;order&quot;:0,&quot;label&quot;:&quot;Account Name&quot;,&quot;type&quot;:&quot;text&quot;},{&quot;apiName&quot;:&quot;BillingCity&quot;,&quot;guid&quot;:&quot;column-586d&quot;,&quot;editable&quot;:false,&quot;hasCustomHeaderLabel&quot;:false,&quot;customHeaderLabel&quot;:&quot;&quot;,&quot;wrapText&quot;:true,&quot;order&quot;:1,&quot;label&quot;:&quot;Billing City&quot;,&quot;type&quot;:&quot;text&quot;},{&quot;apiName&quot;:&quot;Phone&quot;,&quot;guid&quot;:&quot;column-a20a&quot;,&quot;editable&quot;:false,&quot;hasCustomHeaderLabel&quot;:false,&quot;customHeaderLabel&quot;:&quot;&quot;,&quot;wrapText&quot;:true,&quot;order&quot;:2,&quot;label&quot;:&quot;Account Phone&quot;,&quot;type&quot;:&quot;phone&quot;}]</stringValue>
+                </value>
+            </inputParameters>
+            <inputsOnNextNavToAssocScrn>UseStoredValues</inputsOnNextNavToAssocScrn>
+            <isRequired>true</isRequired>
+            <storeOutputAutomatically>true</storeOutputAutomatically>
+        </fields>
+        <showFooter>true</showFooter>
+        <showHeader>true</showHeader>
+    </screens>
+    <start>
+        <locationX>50</locationX>
+        <locationY>0</locationY>
+        <connector>
+            <targetReference>Screen_1</targetReference>
+        </connector>
+    </start>
+    <status>Draft</status>
+</Flow>

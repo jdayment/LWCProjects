@@ -1,0 +1,13 @@
+<!--
+  @description       : 
+  @author            : ChangeMeIn@UserSettingsUnder.SFDoc
+  @group             : 
+  @last modified on  : 01-27-2023
+  @last modified by  : ChangeMeIn@UserSettingsUnder.SFDoc
+-->
+<template>
+  <template if:true={error}>
+    The Data Poller screen component on this screen is reporting the following Error: {error}
+  </template>
+  <span hidden><lightning-formatted-text value={queryString} onchange={handleOnChange}></lightning-formatted-text></span>
+</template>
